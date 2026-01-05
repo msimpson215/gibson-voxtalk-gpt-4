@@ -2,146 +2,401 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>VoxTalk</title>
+  <title>GIPSON Demo (Static Page + VoxTalk)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="data:,">
-  <!-- ... (styles unchanged) ... -->
+
   <style>
-    body {
-      margin:0; font-family:system-ui,sans-serif;
-      display:grid; place-items:center; min-height:100vh;
-      background: radial-gradient(circle at 50% 20%, #dbeafe, #93c5fd 40%, #1e3a8a 90%);
+    :root{
+      --ink:#0b1220;
+      --muted:#64748b;
+      --card: rgba(255,255,255,.92);
+      --line: rgba(255,255,255,.55);
+      --shadow: 0 16px 40px rgba(0,0,0,.22);
+      --radius: 18px;
+      --blue:#2563eb;
+      --blue2:#1e40af;
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    .app { text-align:center; max-width:600px; }
-    .demo-label { font-size:12px; color:#111; margin-bottom:4px; }
-    h1 { margin:6px 0; font-size:22px; }
-    #pttBtn { width:120px; height:120px; border-radius:50%; border:none; cursor:pointer;
+
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family:var(--font);
+      color:var(--ink);
+      background:#0b1220;
+      min-height:100vh;
+    }
+
+    /* Static “fake Gibson page” background */
+    .stage{
+      position:relative;
+      min-height:100vh;
+      overflow:hidden;
+    }
+    .bg{
+      position:absolute;
+      inset:0;
+      background:
+        linear-gradient(to bottom, rgba(0,0,0,.10), rgba(0,0,0,.55)),
+        url("/assets/gibson-bg.png") center top / cover no-repeat;
+      filter: saturate(1.02) contrast(1.02);
+      transform: scale(1.01);
+      z-index:0;
+    }
+
+    /* Overlay area */
+    .overlay{
+      position:relative;
+      z-index:2;
+      padding:18px;
+    }
+
+    /* The “secret salesman” CTA bar */
+    .ctaBar{
+      position:fixed;
+      right:18px;
+      bottom:18px;
+      width:min(420px, calc(100vw - 36px));
+      background: var(--card);
+      border:1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding:12px 12px 10px;
+      backdrop-filter: blur(8px);
+    }
+
+    .ctaTop{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+
+    .ctaTitle{
+      font-weight:900;
+      letter-spacing:.2px;
+      font-size:14px;
+    }
+    .ctaSub{
+      margin-top:4px;
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.35;
+    }
+
+    .btnRow{
+      margin-top:10px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+
+    /* VoxTalk PTT button */
+    #pttBtn{
+      width:62px;
+      height:62px;
+      border-radius:50%;
+      border:none;
+      cursor:pointer;
       background: radial-gradient(circle at 30% 30%, #3b82f6, #1e40af);
-      box-shadow:0 6px 18px rgba(37,99,235,.3); transition: transform 0.15s ease, box-shadow 0.3s ease;
-      position: relative;
+      box-shadow:0 10px 20px rgba(37,99,235,.25);
+      transition: transform .12s ease;
+      position:relative;
     }
-    #pttBtn:hover { transform: scale(1.02); }
-    #pttBtn:active { transform: scale(0.95); }
-    #pttBtn.listening { animation: listenPulse 1.6s ease-in-out infinite; }
-    @keyframes listenPulse { 0% { box-shadow:0 0 0 0 rgba(59,130,246,.7); }
-      50% { box-shadow:0 0 0 20px rgba(59,130,246,0); }
+    #pttBtn:hover{ transform: scale(1.03); }
+    #pttBtn:active{ transform: scale(.95); }
+
+    #pttBtn.listening{ animation: pulse 1.55s ease-in-out infinite; }
+    @keyframes pulse{
+      0%   { box-shadow:0 0 0 0 rgba(59,130,246,.55); }
+      55%  { box-shadow:0 0 0 18px rgba(59,130,246,0); }
       100% { box-shadow:0 0 0 0 rgba(59,130,246,0); }
     }
-    #pttBtn.speaking::before {
-      content:""; position:absolute; inset:0; border-radius:50%;
+
+    #pttBtn.speaking::before{
+      content:"";
+      position:absolute; inset:0; border-radius:50%;
       background: conic-gradient(from 0deg, #60a5fa, #2563eb, #1e40af, #60a5fa);
       animation: swirl 2s linear infinite;
       -webkit-mask: radial-gradient(circle, rgba(0,0,0,0) 65%, rgba(0,0,0,1) 66%);
               mask: radial-gradient(circle, rgba(0,0,0,0) 65%, rgba(0,0,0,1) 66%);
     }
-    @keyframes swirl { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    #answer {
-      margin-top:20px; padding:12px; border:1px solid #ccc;
-      border-radius:8px; background:white;
-      min-height:80px; text-align:left; font-size:14px;
+    @keyframes swirl{ from{ transform:rotate(0deg);} to{ transform:rotate(360deg);} }
+
+    .openBtn{
+      flex:1;
+      min-width: 220px;
+      border:none;
+      border-radius: 14px;
+      padding:12px 14px;
+      background: linear-gradient(135deg, var(--blue), var(--blue2));
+      color:#fff;
+      font-weight:900;
+      cursor:pointer;
+      text-align:left;
     }
-    .line { margin:6px 0; }
-    .me { color:#2563eb; font-weight:600; }
-    .ai { color:#065f46; font-weight:600; }
-    .text { color:#111; }
-    .muted { color:#777; font-style:italic; }
+    .openBtn small{
+      display:block;
+      opacity:.9;
+      font-weight:700;
+      margin-top:2px;
+    }
+
+    /* Panel that opens when user clicks “Talk to our…” */
+    .panel{
+      margin-top:10px;
+      display:none;
+      border-top:1px solid rgba(0,0,0,.08);
+      padding-top:10px;
+    }
+    .panel.open{ display:block; }
+
+    #answer{
+      margin-top:8px;
+      padding:10px;
+      border-radius:14px;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      min-height:84px;
+      max-height:160px;
+      overflow:auto;
+      font-size:13px;
+    }
+    .line{ margin:6px 0; }
+    .me{ color:#2563eb; font-weight:800; }
+    .ai{ color:#065f46; font-weight:800; }
+    .muted{ color:#777; font-style:italic; }
+
+    /* Product cards area */
+    .products{
+      margin-top:10px;
+      display:none;
+    }
+    .products.show{ display:block; }
+
+    .prodGrid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:10px;
+    }
+
+    .prodCard{
+      display:grid;
+      grid-template-columns: 84px 1fr;
+      gap:10px;
+      align-items:start;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:14px;
+      padding:10px;
+    }
+    .thumb{
+      width:84px; height:84px;
+      border-radius:12px;
+      overflow:hidden;
+      border:1px solid #eef2f7;
+      background:#f8fafc;
+      display:grid;
+      place-items:center;
+    }
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+    .prodCard h4{ margin:0 0 4px; font-size:13px; }
+    .meta{ margin:0; font-size:12px; color:var(--muted); }
+    .price{ margin-top:6px; font-weight:1000; }
+
+    a{ color:var(--blue2); text-decoration:none; font-weight:900; }
+    a:hover{ text-decoration:underline; }
+
+    .tiny{
+      margin-top:8px;
+      font-size:11px;
+      color:var(--muted);
+      line-height:1.35;
+    }
   </style>
 </head>
 <body>
-  <div class="app">
-    <p class="demo-label">Demo</p>
-    <h1>Talk to VoxTalk</h1>
-    <button id="pttBtn" aria-pressed="false"></button>
-    <div id="answer"><div class="muted">Conversation will appear here.</div></div>
-    <audio id="remote" autoplay playsinline></audio>
+  <div class="stage">
+    <div class="bg" aria-hidden="true"></div>
+
+    <div class="overlay">
+      <!-- nothing needed here yet; the overlay UI is fixed bottom-right -->
+    </div>
+
+    <div class="ctaBar">
+      <div class="ctaTop">
+        <div>
+          <div class="ctaTitle">GIPSON — secret salesman demo</div>
+          <div class="ctaSub">Static “Gibson-like” page behind it. Real voice AI overlay on top.</div>
+        </div>
+      </div>
+
+      <div class="btnRow">
+        <button id="pttBtn" title="Push-to-talk"></button>
+
+        <button class="openBtn" id="openPanel">
+          Talk to our authentic AI team member
+          <small>Ask anything Gibson — then say “show me…” to pop products.</small>
+        </button>
+      </div>
+
+      <div class="panel" id="panel">
+        <div id="answer"><div class="muted">Conversation will appear here.</div></div>
+
+        <div class="products" id="products">
+          <div class="tiny"><b>Products:</b> triggered by AI tag like <code>[[SHOW: sunburst les paul]]</code></div>
+          <div class="prodGrid" id="prodGrid"></div>
+        </div>
+
+        <div class="tiny">
+          Tip: Click the blue circle to start/stop listening. Ask: “I’m a beginner. Show me a Les Paul.”
+        </div>
+
+        <audio id="remote" autoplay playsinline></audio>
+      </div>
+    </div>
   </div>
 
+  <script type="module" src="/gipson.js"></script>
+
   <script>
+    // UI open/close
+    const openPanelBtn = document.getElementById('openPanel');
+    const panel = document.getElementById('panel');
+
+    openPanelBtn.onclick = () => {
+      panel.classList.toggle('open');
+      if (panel.classList.contains('open')) {
+        window.__gipson_loadCatalog?.();
+        // show an initial line so it feels alive
+        window.__gipson_appendLine?.("ai", "Hi—welcome to Gibson. What can I help you find today?");
+      }
+    };
+  </script>
+
+  <script>
+    // VoxTalk Realtime (voice) + SHOW tag detection → product popups
     const pttBtn   = document.getElementById('pttBtn');
     const answerEl = document.getElementById('answer');
     const rtAudio  = document.getElementById('remote');
 
-    function appendLine(role, text) {
+    let pc, micTrack, dc;
+    let talking = false;
+    let aiBuffer = ""; // accumulate text to detect [[SHOW: ...]]
+
+    function appendLine(role, htmlText) {
       if (answerEl.querySelector('.muted')) answerEl.innerHTML = '';
       const div = document.createElement('div');
       div.className = 'line';
-      div.innerHTML = `<span class="${role}">${role==='me'?'You:':'AI:'}</span>
-                       <span class="text">${text}</span>`;
+      div.innerHTML = `<span class="${role}">${role==='me'?'You:':'AI:'}</span> <span class="text">${htmlText}</span>`;
       answerEl.appendChild(div);
       answerEl.scrollTop = answerEl.scrollHeight;
     }
-    function setListening(on) { pttBtn.classList.toggle('listening', on); }
-    function setSpeaking(on) { pttBtn.classList.toggle('speaking', on); }
 
-    async function initRealtime() {
-      try {
-        const s = await fetch("/session", { method:"POST" });
-        const { client_secret, model, voice } = await s.json();
+    function setListening(on){ pttBtn.classList.toggle('listening', on); }
+    function setSpeaking(on){ pttBtn.classList.toggle('speaking', on); }
 
-        const pc = new RTCPeerConnection();
-        const mic = await navigator.mediaDevices.getUserMedia({ audio:true });
-        const micTrack = mic.getTracks()[0];
-        micTrack.enabled = false;
-        pc.addTrack(micTrack, mic);
+    // expose to gipson.js so it can write into the conversation box too
+    window.__gipson_appendLine = appendLine;
 
-        pc.ontrack = (ev)=> {
-          rtAudio.srcObject = ev.streams[0];
-          rtAudio.play().catch(()=>{});
-        };
+    function detectShowTag(textChunk) {
+      aiBuffer += textChunk;
 
-        const dc = pc.createDataChannel("events");
-        dc.onmessage = (e)=> {
-          try {
-            const evt = JSON.parse(e.data);
-            if (evt.type === "response.message.delta") {
-              const chunk = evt.delta.map(d=>d.content?.[0]?.text||"").join("");
-              if (chunk) appendLine("ai", chunk);
-            }
-          } catch {}
-        };
+      // Look for [[SHOW: ...]]
+      const m = aiBuffer.match(/\[\[SHOW:\s*([^\]]+?)\s*\]\]/i);
+      if (m && m[1]) {
+        const query = m[1].trim();
+        // clear buffer so it doesn't keep re-firing
+        aiBuffer = aiBuffer.replace(m[0], "");
 
-        const offer = await pc.createOffer({ offerToReceiveAudio:true });
-        await pc.setLocalDescription(offer);
-
-        const r = await fetch(
-          `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}&voice=${voice}`,
-          {
-            method:"POST",
-            headers: {
-              "Authorization":`Bearer ${client_secret.value}`,
-              "Content-Type":"application/sdp"
-            },
-            body: offer.sdp
-          }
-        );
-        const answer = { type:"answer", sdp: await r.text() };
-        await pc.setRemoteDescription(answer);
-
-        let talking = false;
-        pttBtn.onclick = () => {
-          talking = !talking;
-          micTrack.enabled = talking;
-          setListening(talking);
-          if (talking) {
-            appendLine("me","(Listening...)");
-          } else {
-            setListening(false); setSpeaking(false);
-            appendLine("me","(Stopped)");
-          }
-        };
-
-        rtAudio.addEventListener("playing", ()=> setSpeaking(true));
-        rtAudio.addEventListener("ended",   ()=> { setSpeaking(false); setListening(false); talking=false; });
-        rtAudio.addEventListener("pause",   ()=> { setSpeaking(false); setListening(false); talking=false; });
-
-      } catch(err) {
-        console.error("Realtime init failed", err);
+        // trigger product rendering (top 3)
+        window.__gipson_showProducts?.(query);
       }
-    }
-    initRealtime();
 
-    // Add your custom greeting on load!
-    appendLine("ai", "Hello, this is VoxTalk. I was created by your dad, Marty Simpson.<br><br>Hello Mia and Rachel, nice to meet you!<br><br>You can ask me anything you would like.");
+      // keep buffer from growing forever
+      if (aiBuffer.length > 2000) aiBuffer = aiBuffer.slice(-800);
+    }
+
+    async function initRealtimeOnce() {
+      if (pc) return; // already initialized
+
+      const s = await fetch("/session", { method:"POST" });
+      const { client_secret, model, voice } = await s.json();
+
+      pc = new RTCPeerConnection();
+
+      const mic = await navigator.mediaDevices.getUserMedia({ audio:true });
+      micTrack = mic.getTracks()[0];
+      micTrack.enabled = false;
+      pc.addTrack(micTrack, mic);
+
+      pc.ontrack = (ev) => {
+        rtAudio.srcObject = ev.streams[0];
+        rtAudio.play().catch(()=>{});
+      };
+
+      dc = pc.createDataChannel("events");
+      dc.onmessage = (e) => {
+        try {
+          const evt = JSON.parse(e.data);
+
+          // This delta stream can arrive in tiny chunks
+          if (evt.type === "response.message.delta") {
+            const chunk = evt.delta
+              .map(d => d.content?.[0]?.text || "")
+              .join("");
+
+            if (chunk) {
+              appendLine("ai", chunk);
+              detectShowTag(chunk);
+            }
+          }
+        } catch {}
+      };
+
+      const offer = await pc.createOffer({ offerToReceiveAudio:true });
+      await pc.setLocalDescription(offer);
+
+      const r = await fetch(
+        `https://api.openai.com/v1/realtime?model=${encodeURIComponent(model)}&voice=${voice}`,
+        {
+          method:"POST",
+          headers: {
+            "Authorization": `Bearer ${client_secret.value}`,
+            "Content-Type":"application/sdp"
+          },
+          body: offer.sdp
+        }
+      );
+
+      const answer = { type:"answer", sdp: await r.text() };
+      await pc.setRemoteDescription(answer);
+
+      rtAudio.addEventListener("playing", ()=> setSpeaking(true));
+      rtAudio.addEventListener("ended", ()=> { setSpeaking(false); setListening(false); talking=false; if (micTrack) micTrack.enabled=false; });
+      rtAudio.addEventListener("pause", ()=> { setSpeaking(false); setListening(false); talking=false; if (micTrack) micTrack.enabled=false; });
+
+      appendLine("ai", "Hi—welcome to Gibson. What can I help you find today?");
+    }
+
+    pttBtn.onclick = async () => {
+      try {
+        await initRealtimeOnce();
+
+        talking = !talking;
+        micTrack.enabled = talking;
+        setListening(talking);
+
+        if (talking) appendLine("me","(Listening...)");
+        else appendLine("me","(Stopped)");
+      } catch (err) {
+        console.error(err);
+        appendLine("ai", "Voice init failed. Check /session + Render env var OPENAI_API_KEY.");
+      }
+    };
   </script>
 </body>
 </html>
