@@ -1,5 +1,5 @@
 {
-  "name": "voxtalk-asr-test",
+  "name": "gipson-voxtalk-demo",
   "version": "1.0.0",
   "type": "module",
   "main": "server/server.js",
