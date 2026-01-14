@@ -3,200 +3,444 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>GIPSON Demo</title>
+  <title>Gibson Voice Sales Demo</title>
   <style>
-    body{
-      margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background:#0b1220;
-      color:#fff;
+    :root{
+      --ink:#0b1220;
+      --muted:#5b6476;
+      --card:#ffffff;
+      --line:#e6e8ee;
+      --shadow: 0 14px 40px rgba(0,0,0,.12);
+      --radius:16px;
+      --accent:#111827;
+      --accent2:#f59e0b;
+      --bg:#f6f8fb;
+      --ok:#16a34a;
+      --bad:#dc2626;
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    .wrap{
-      max-width: 980px;
-      margin: 0 auto;
-      padding: 18px;
-    }
-    .hero{
-      border-radius: 18px;
-      overflow:hidden;
-      background:#111a33;
-      border: 1px solid rgba(255,255,255,.08);
-      box-shadow: 0 16px 50px rgba(0,0,0,.35);
-    }
+    *{box-sizing:border-box}
+    body{ margin:0; font-family:var(--font); background:var(--bg); color:var(--ink); }
+
+    /* Fullscreen background (BRIGHT) */
     .bg{
-      position:relative;
-      height: 360px;
-      background: #0b1220 url("/assets/gibson-bg.png") center/cover no-repeat;
+      position:fixed; inset:0;
+      background: url("/assets/gibson-bg.png") center/cover no-repeat;
+      transform: translateZ(0);
     }
-    .bg::after{
-      content:"";
-      position:absolute; inset:0;
-      background: linear-gradient(180deg, rgba(11,18,32,.15), rgba(11,18,32,.75));
+    /* Light scrim so text is readable but NOT dim */
+    .scrim{
+      position:fixed; inset:0;
+      background: rgba(255,255,255,0.08);
+      pointer-events:none;
     }
-    .topbar{
+
+    /* Bottom-right dock */
+    .dock{
+      position:fixed;
+      right: 18px;
+      bottom: 18px;
+      width: min(420px, calc(100vw - 36px));
+      background: rgba(255,255,255,.92);
+      border:1px solid var(--line);
+      box-shadow: var(--shadow);
+      border-radius: 20px;
+      overflow:hidden;
+      backdrop-filter: blur(10px);
+    }
+    .dockHeader{
       display:flex;
-      gap:10px;
       align-items:center;
       justify-content:space-between;
-      padding: 14px 16px;
+      gap:12px;
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(90deg, rgba(17,24,39,.92), rgba(17,24,39,.82));
+      color:#fff;
     }
     .brand{
-      display:flex; gap:10px; align-items:center;
-      font-weight: 800;
-      letter-spacing: .4px;
+      display:flex; align-items:center; gap:10px;
+      font-weight:700;
+      letter-spacing:.2px;
+    }
+    .tag{
+      font-size:11px;
+      padding:3px 8px;
+      border-radius:999px;
+      background: rgba(245,158,11,.18);
+      border:1px solid rgba(245,158,11,.35);
+      color:#fff;
+      font-weight:600;
+    }
+
+    .row{ display:flex; gap:10px; align-items:center; }
+    .btn{
+      appearance:none;
+      border:1px solid rgba(255,255,255,.25);
+      background: rgba(255,255,255,.14);
+      color:#fff;
+      border-radius:999px;
+      padding:8px 10px;
+      cursor:pointer;
+      font-weight:700;
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .btn:active{ transform: translateY(1px); }
+
+    .micDot{
+      width:10px; height:10px; border-radius:50%;
+      background: rgba(255,255,255,.7);
+    }
+    .micOn .micDot{ background: var(--accent2); box-shadow: 0 0 0 6px rgba(245,158,11,.20); }
+
+    .dockBody{ padding:12px 14px; }
+    .status{
+      font-size:12px;
+      color: var(--muted);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
     }
     .pill{
-      font-size:12px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.10);
-      color: rgba(255,255,255,.85);
+      font-size:11px;
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:#fff;
+      color: var(--muted);
+      white-space:nowrap;
     }
-    .panel{
-      padding: 14px 16px 18px;
-    }
+    .pill.ok{ color: var(--ok); border-color: rgba(22,163,74,.3); background: rgba(22,163,74,.06); }
+    .pill.bad{ color: var(--bad); border-color: rgba(220,38,38,.3); background: rgba(220,38,38,.06); }
 
-    /* Product panel */
-    #products{
-      display:none;
-      margin-top: 14px;
-      background: rgba(255,255,255,.06);
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: 16px;
-      padding: 12px;
+    .log{
+      height: 120px;
+      overflow:auto;
+      border:1px solid var(--line);
+      border-radius: 14px;
+      padding:10px;
+      background: rgba(255,255,255,.86);
+      font-size:13px;
+      line-height:1.35;
     }
-    #products.show{ display:block; }
+    .log p{ margin:0 0 8px 0; }
+    .log .me{ color:#0f172a; font-weight:700; }
+    .log .ai{ color:#111827; }
 
-    .searchRow{
+    .controls{
       display:flex;
       gap:10px;
-      align-items:center;
-      margin-bottom: 12px;
+      margin-top:10px;
     }
-    #q{
+    input[type="text"]{
       flex:1;
-      padding: 10px 12px;
+      padding:10px 12px;
       border-radius: 12px;
-      border: 1px solid rgba(255,255,255,.15);
-      background: rgba(0,0,0,.25);
-      color:#fff;
+      border:1px solid var(--line);
       outline:none;
+      background:#fff;
+      font-size:14px;
     }
-    #go{
-      padding: 10px 14px;
+    .go{
+      border:0;
       border-radius: 12px;
-      border: 0;
+      padding:10px 12px;
+      background: #111827;
+      color:#fff;
+      font-weight:800;
       cursor:pointer;
-      font-weight: 700;
     }
 
+    /* Product cards panel */
+    #products{
+      display:none;
+      margin-top:12px;
+      border-top:1px solid var(--line);
+      padding-top:12px;
+    }
+    #products.show{ display:block; }
     #prodGrid{
       display:grid;
       grid-template-columns: 1fr;
-      gap: 10px;
+      gap:10px;
     }
     .prodCard{
-      display:flex;
-      gap: 12px;
-      padding: 10px;
-      background: rgba(0,0,0,.25);
-      border: 1px solid rgba(255,255,255,.10);
+      display:grid;
+      grid-template-columns: 86px 1fr;
+      gap:10px;
+      padding:10px;
       border-radius: 14px;
-      align-items:center;
+      border:1px solid var(--line);
+      background:#fff;
     }
     .thumb{
-      width: 110px;
-      height: 110px;
+      width:86px; height:86px;
       border-radius: 12px;
+      border:1px solid var(--line);
       overflow:hidden;
-      background: rgba(255,255,255,.08);
-      flex: 0 0 110px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
+      display:flex; align-items:center; justify-content:center;
+      background: #f8fafc;
     }
-    .thumb img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-    }
-    .prodCard h4{
-      margin:0 0 4px;
-      font-size: 16px;
-      line-height: 1.2;
-    }
-    .meta{
-      margin:0;
-      font-size: 12px;
-      color: rgba(255,255,255,.75);
-    }
-    .price{
-      margin-top: 6px;
-      font-weight: 800;
-      font-size: 14px;
-    }
-
-    /* Small note */
-    .note{
-      font-size: 12px;
-      color: rgba(255,255,255,.75);
-      margin-top: 8px;
-    }
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .prodCard h4{ margin:0 0 4px 0; font-size:14px; }
+    .meta{ margin:0; color:var(--muted); font-size:12px; }
+    .price{ margin-top:6px; font-weight:900; }
+    .meta a{ color:#2563eb; text-decoration:none; }
+    .meta a:hover{ text-decoration:underline; }
   </style>
 </head>
-
 <body>
-  <div class="wrap">
-    <div class="hero">
-      <div class="topbar">
-        <div class="brand">
-          GIPSON <span class="pill">CSV → Cards</span>
-        </div>
-        <div class="pill">Render demo</div>
+  <div class="bg"></div>
+  <div class="scrim"></div>
+
+  <div class="dock" id="dock">
+    <div class="dockHeader">
+      <div class="brand">
+        <div>Gibson</div>
+        <div class="tag">Voice Sales Demo</div>
+      </div>
+      <div class="row">
+        <button class="btn" id="micBtn" title="Start/Stop Voice">
+          <span class="micDot" id="micDot"></span>
+          <span id="micLabel">Voice Off</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="dockBody">
+      <div class="status">
+        <div>Tip: type <b>[[SHOW: les paul custom]]</b> or just “show les paul custom”.</div>
+        <div class="pill" id="connPill">idle</div>
       </div>
 
-      <div class="bg" aria-label="Background image"></div>
+      <div class="log" id="log"></div>
 
-      <div class="panel">
-        <div class="searchRow">
-          <input id="q" placeholder='Try "Les Paul", "ES-335", "SG"' />
-          <button id="go">Show</button>
-        </div>
+      <div class="controls">
+        <input id="textIn" type="text" placeholder='Try: "Les Paul Custom" or "[[SHOW: SG]]"' />
+        <button class="go" id="sendBtn">Send</button>
+      </div>
 
-        <!-- ✅ These IDs are what gipson.js needs -->
-        <div id="products">
-          <div id="prodGrid"></div>
-        </div>
-
-        <div class="note">
-          Tip: open DevTools Console and run <code>__gipson_showProducts("Les Paul")</code>
-        </div>
+      <div id="products">
+        <div style="font-weight:800; margin-bottom:8px;">Top matches</div>
+        <div id="prodGrid"></div>
       </div>
     </div>
   </div>
 
-  <!-- ✅ Load the CSV search/render logic -->
   <script src="/gipson.js"></script>
-
-  <!-- Simple wiring for the search box -->
   <script>
-    const q = document.getElementById("q");
-    const go = document.getElementById("go");
+    const logEl = document.getElementById("log");
+    const textIn = document.getElementById("textIn");
+    const sendBtn = document.getElementById("sendBtn");
+    const micBtn = document.getElementById("micBtn");
+    const micLabel = document.getElementById("micLabel");
+    const connPill = document.getElementById("connPill");
+    const dock = document.getElementById("dock");
 
-    // Load catalog in background (optional)
-    window.__gipson_loadCatalog && window.__gipson_loadCatalog();
-
-    function runSearch(){
-      const query = (q.value || "").trim();
-      window.__gipson_showProducts && window.__gipson_showProducts(query);
+    function addLine(who, msg){
+      const p = document.createElement("p");
+      p.innerHTML = `<span class="${who}">${who === "me" ? "You" : "Gibson"}:</span> <span class="${who === "me" ? "" : "ai"}">${escapeHtml(msg)}</span>`;
+      logEl.appendChild(p);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    function escapeHtml(s){
+      return String(s)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;");
     }
 
-    go.addEventListener("click", runSearch);
-    q.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") runSearch();
+    function extractShowQuery(txt){
+      const m = txt.match(/\[\[\s*SHOW\s*:\s*([^\]]+)\]\]/i);
+      if (m) return m[1].trim();
+      // Also accept "show ____"
+      const m2 = txt.match(/^\s*show\s+(.+)$/i);
+      if (m2) return m2[1].trim();
+      return null;
+    }
+
+    // ---- Voice (Realtime WebRTC unified interface) ----
+    let pc = null;
+    let dc = null;
+    let localStream = null;
+    let audioEl = null;
+
+    function setPill(state){
+      connPill.className = "pill";
+      connPill.textContent = state;
+      if (state === "connected") connPill.classList.add("ok");
+      if (state === "error") connPill.classList.add("bad");
+    }
+
+    async function startVoice(){
+      setPill("connecting...");
+      micBtn.classList.add("micOn");
+      micLabel.textContent = "Voice On";
+
+      // Create peer connection
+      pc = new RTCPeerConnection();
+
+      // Remote audio from the model
+      audioEl = document.createElement("audio");
+      audioEl.autoplay = true;
+      pc.ontrack = (e) => {
+        audioEl.srcObject = e.streams[0];
+      };
+
+      // Local mic
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      pc.addTrack(localStream.getTracks()[0]);
+
+      // Data channel for events
+      dc = pc.createDataChannel("oai-events");
+      dc.onopen = () => {
+        setPill("connected");
+        // Set your "salesperson brain" here
+        sendEvent({
+          type: "session.update",
+          session: {
+            instructions:
+              "You are Gibson's friendly, no-pressure guitar salesperson. Ask 1-2 quick questions, then recommend options. " +
+              "Keep answers short. If the user mentions a model, help them compare. " +
+              "When user asks to 'show' something, respond with [[SHOW: <query>]]."
+          }
+        });
+        // Say hello once
+        sendEvent({
+          type: "response.create",
+          response: {
+            modalities: ["audio","text"],
+            instructions: "Greet the user and ask what style of guitar they want (Les Paul, SG, acoustic, bass, etc.). Keep it short."
+          }
+        });
+      };
+      dc.onmessage = (e) => {
+        try{
+          const evt = JSON.parse(e.data);
+          // You can inspect events in console if you want
+          // console.log("evt", evt);
+
+          // When text comes back, show it in the log (not all events have text)
+          if (evt.type === "response.output_text.delta" && evt.delta) {
+            // optional: live delta display (skip for simplicity)
+          }
+          if (evt.type === "response.output_text.done" && evt.text) {
+            addLine("ai", evt.text);
+            const q = extractShowQuery(evt.text);
+            if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
+          }
+
+          // Some servers send transcription events; if present, show them
+          if (evt.type === "input_audio_transcription.completed" && evt.text) {
+            addLine("me", evt.text);
+          }
+        } catch(err){
+          // ignore non-json
+        }
+      };
+
+      // SDP offer/answer exchange via your server endpoint
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const sdpResp = await fetch("/session", {
+        method: "POST",
+        body: offer.sdp,
+        headers: { "Content-Type": "application/sdp" }
+      });
+
+      if (!sdpResp.ok) {
+        const t = await sdpResp.text();
+        console.error("Session failed:", t);
+        setPill("error");
+        stopVoice();
+        return;
+      }
+
+      const answer = { type: "answer", sdp: await sdpResp.text() };
+      await pc.setRemoteDescription(answer);
+    }
+
+    function sendEvent(obj){
+      if (!dc || dc.readyState !== "open") return;
+      dc.send(JSON.stringify(obj));
+    }
+
+    function stopVoice(){
+      micBtn.classList.remove("micOn");
+      micLabel.textContent = "Voice Off";
+      setPill("idle");
+
+      try { if (dc) dc.close(); } catch {}
+      dc = null;
+
+      try { if (pc) pc.close(); } catch {}
+      pc = null;
+
+      if (localStream) {
+        localStream.getTracks().forEach(t => { try{ t.stop(); } catch {} });
+      }
+      localStream = null;
+
+      if (audioEl) {
+        try { audioEl.srcObject = null; } catch {}
+      }
+      audioEl = null;
+    }
+
+    micBtn.addEventListener("click", async () => {
+      if (pc) return stopVoice();
+      try {
+        await startVoice();
+      } catch (e) {
+        console.error(e);
+        setPill("error");
+        stopVoice();
+      }
     });
+
+    // ---- Text input (still useful even with voice) ----
+    async function handleSend(){
+      const txt = textIn.value.trim();
+      if (!txt) return;
+      textIn.value = "";
+      addLine("me", txt);
+
+      // Local SHOW handling (even without voice)
+      const q = extractShowQuery(txt);
+      if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
+
+      // If voice session is connected, send as a user message and request a response
+      if (dc && dc.readyState === "open") {
+        sendEvent({
+          type: "conversation.item.create",
+          item: {
+            type: "message",
+            role: "user",
+            content: [{ type: "input_text", text: txt }]
+          }
+        });
+        sendEvent({
+          type: "response.create",
+          response: { modalities: ["audio","text"] }
+        });
+      } else {
+        // No voice session: still give a helpful hint
+        if (!q) addLine("ai", "Turn Voice On, or type: [[SHOW: les paul custom]]");
+      }
+    }
+
+    sendBtn.addEventListener("click", handleSend);
+    textIn.addEventListener("keydown", (e) => { if (e.key === "Enter") handleSend(); });
+
+    // Preload catalog quietly
+    if (window.__gipson_loadCatalog) window.__gipson_loadCatalog();
+    setPill("idle");
   </script>
 </body>
 </html>
