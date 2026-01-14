@@ -1,3 +1,4 @@
+// public/gipson.js
 let catalog = null;
 
 const productsWrap = document.getElementById("products");
@@ -70,13 +71,13 @@ function normalizeRows(rows){
   };
 
   return rows.map(r => {
-    const product_url = get(r, "full-unstyled-link href", "product-card-link");
-    const title = get(r, "full-unstyled-link");
-    const image_url = get(r, "motion-reduce src", "linked-product__image src");
-    const price = normalizePrice(get(r, "price-item"));
+    const product_url = get(r, "full-unstyled-link href", "product-card-link", "url", "product_url");
+    const title = get(r, "full-unstyled-link", "title", "name");
+    const image_url = get(r, "motion-reduce src", "linked-product__image src", "image", "image_url");
+    const price = normalizePrice(get(r, "price-item", "price"));
 
-    const sku = urlSlug(product_url) || title || "unknown-item";
-    const vendor = get(r, "vendor-name");
+    const sku = get(r, "sku") || urlSlug(product_url) || title || "unknown-item";
+    const vendor = get(r, "vendor-name", "vendor");
     const flag1 = get(r, "product-flag");
     const flag2 = get(r, "product-flag 2");
 
@@ -157,12 +158,8 @@ function renderProducts(items, query){
   productsWrap.classList.add("show");
 }
 
-// Exposed hooks called by index.html voice stream
-window.__gipson_loadCatalog = async () => {
-  try { await loadCatalog(); }
-  catch(e){ console.error(e); }
-};
-
+// Exposed hooks called by index.html
+window.__gipson_loadCatalog = async () => { try { await loadCatalog(); } catch(e){ console.error(e); } };
 window.__gipson_showProducts = async (query) => {
   try{
     const items = await loadCatalog();
@@ -172,5 +169,3 @@ window.__gipson_showProducts = async (query) => {
     console.error(e);
   }
 };
-
-
