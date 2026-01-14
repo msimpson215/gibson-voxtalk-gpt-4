@@ -10,34 +10,32 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve the public folder
+// Serve /public as the site root
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
 
-// Parse raw SDP payloads posted from the browser
+// Browser posts SDP as text
 app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
-// Health check
 app.get("/health", (req, res) => res.json({ ok: true }));
 
-// Create a Realtime session via the unified interface (WebRTC)
-// Browser POSTs SDP -> we forward to OpenAI -> return SDP answer (text)
+/**
+ * WebRTC Realtime: browser creates SDP offer, POSTs it to /session,
+ * server forwards it to OpenAI /v1/realtime/calls, returns SDP answer.
+ */
 app.post("/session", async (req, res) => {
   try {
     if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: "Missing OPENAI_API_KEY in .env" });
+      return res.status(500).json({ error: "Missing OPENAI_API_KEY in environment" });
     }
 
     const model = process.env.REALTIME_MODEL || "gpt-realtime";
     const voice = process.env.REALTIME_VOICE || "alloy";
 
-    // Session config per OpenAI docs (unified interface)
     const sessionConfig = JSON.stringify({
       type: "realtime",
       model,
-      audio: { output: { voice } },
-      // Keep it simple: server-side VAD (turn detection) is the most reliable default.
-      // You can later tune turn_detection via a session.update event from the client.
+      audio: { output: { voice } }
     });
 
     const fd = new FormData();
@@ -58,17 +56,16 @@ app.post("/session", async (req, res) => {
       return res.status(500).send(txt);
     }
 
-    // Return SDP answer (plain text)
     const sdpAnswer = await r.text();
     res.setHeader("Content-Type", "application/sdp");
-    res.send(sdpAnswer);
+    return res.send(sdpAnswer);
   } catch (err) {
     console.error("Session error:", err);
-    res.status(500).json({ error: "Failed to create realtime session" });
+    return res.status(500).json({ error: "Failed to create realtime session" });
   }
 });
 
-// SPA-ish fallback (optional): serve index.html
+// Fallback: serve the app
 app.get("*", (req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
