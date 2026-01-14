@@ -10,7 +10,6 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve /public as the site root
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
 
@@ -19,10 +18,6 @@ app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 
-/**
- * WebRTC Realtime: browser creates SDP offer, POSTs it to /session,
- * server forwards it to OpenAI /v1/realtime/calls, returns SDP answer.
- */
 app.post("/session", async (req, res) => {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -44,10 +39,8 @@ app.post("/session", async (req, res) => {
 
     const r = await fetch("https://api.openai.com/v1/realtime/calls", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: fd,
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: fd
     });
 
     if (!r.ok) {
@@ -65,10 +58,7 @@ app.post("/session", async (req, res) => {
   }
 });
 
-// Fallback: serve the app
-app.get("*", (req, res) => {
-  res.sendFile(path.join(publicDir, "index.html"));
-});
+app.get("*", (req, res) => res.sendFile(path.join(publicDir, "index.html")));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
