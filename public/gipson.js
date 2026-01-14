@@ -159,7 +159,11 @@ function renderProducts(items, query){
 }
 
 // Exposed hooks called by index.html
-window.__gipson_loadCatalog = async () => { try { await loadCatalog(); } catch(e){ console.error(e); } };
+window.__gipson_loadCatalog = async () => {
+  try { await loadCatalog(); }
+  catch(e){ console.error(e); }
+};
+
 window.__gipson_showProducts = async (query) => {
   try{
     const items = await loadCatalog();
