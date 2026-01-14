@@ -1,8 +1,8 @@
 {
-  "name": "gibson-voice-demo",
+  "name": "gibson-voice-sales-demo",
   "version": "1.0.0",
-  "type": "module",
   "private": true,
+  "type": "module",
   "scripts": {
     "start": "node server/server.js",
     "dev": "node server/server.js"
