@@ -103,12 +103,11 @@ async function loadCatalog(){
   return catalog;
 }
 
-// simple scoring search, returns top N
 function searchTop(items, query, n=3){
   const q = query.toLowerCase().trim();
   const tokens = q.split(/\s+/).filter(Boolean);
 
-  const scored = items.map(it => {
+  return items.map(it => {
     const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
     let score = 0;
     if (hay.includes(q)) score += 100;
@@ -118,8 +117,6 @@ function searchTop(items, query, n=3){
     .sort((a,b) => b.score - a.score)
     .slice(0, n)
     .map(x => x.it);
-
-  return scored;
 }
 
 function renderProducts(items, query){
@@ -158,10 +155,8 @@ function renderProducts(items, query){
   productsWrap.classList.add("show");
 }
 
-// Exposed hooks called by index.html
 window.__gipson_loadCatalog = async () => {
-  try { await loadCatalog(); }
-  catch(e){ console.error(e); }
+  try { await loadCatalog(); } catch(e){ console.error(e); }
 };
 
 window.__gipson_showProducts = async (query) => {
