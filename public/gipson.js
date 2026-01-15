@@ -103,6 +103,7 @@ async function loadCatalog(){
   return catalog;
 }
 
+// simple scoring search, returns top N
 function searchTop(items, query, n=3){
   const q = query.toLowerCase().trim();
   const tokens = q.split(/\s+/).filter(Boolean);
