@@ -18,6 +18,9 @@ app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 
+/**
+ * Browser POSTs SDP offer to /session, server returns SDP answer from OpenAI.
+ */
 app.post("/session", async (req, res) => {
   try {
     if (!process.env.OPENAI_API_KEY) {
