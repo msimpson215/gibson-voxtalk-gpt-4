@@ -1,4 +1,3 @@
-// server/server.js
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -10,6 +9,7 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Serve /public
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
 
@@ -18,9 +18,6 @@ app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 
-/**
- * Browser POSTs SDP offer to /session, server returns SDP answer from OpenAI.
- */
 app.post("/session", async (req, res) => {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -61,7 +58,10 @@ app.post("/session", async (req, res) => {
   }
 });
 
-app.get("*", (req, res) => res.sendFile(path.join(publicDir, "index.html")));
+// Fallback
+app.get("*", (req, res) => {
+  res.sendFile(path.join(publicDir, "index.html"));
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
