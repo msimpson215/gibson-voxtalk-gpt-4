@@ -9,156 +9,124 @@
     :root{
       --ink:#0b1220;
       --muted:#5b6476;
-      --card:#ffffff;
       --line:#e6e8ee;
       --shadow: 0 14px 40px rgba(0,0,0,.12);
-      --radius:16px;
-      --accent:#111827;
-      --accent2:#f59e0b;
       --bg:#f6f8fb;
       --ok:#16a34a;
       --bad:#dc2626;
+      --accent2:#f59e0b;
       --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
     *{box-sizing:border-box}
     body{ margin:0; font-family:var(--font); background:var(--bg); color:var(--ink); }
 
-    /* Fullscreen background (BRIGHT) */
+    /* Fullscreen background */
     .bg{
       position:fixed; inset:0;
       background: url("/assets/gibson-bg.png") center/cover no-repeat;
       transform: translateZ(0);
     }
-    /* Light scrim so text is readable but NOT dim */
+
+    /* Very light scrim (keeps it bright) */
     .scrim{
       position:fixed; inset:0;
-      background: rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.06);
       pointer-events:none;
     }
 
-    /* ---------------- TOP TAB BAR ---------------- */
+    /* ---------------- Blended nav-style CTA (single button) ---------------- */
 
-    .topTabs{
+    .siteAiCta{
       position: fixed;
-      top: 14px;
       left: 50%;
+      top: 92px;              /* <-- tweak this to sit right under your nav row */
       transform: translateX(-50%);
-      width: min(1100px, calc(100vw - 28px));
-      z-index: 6;
+      z-index: 7;
+      text-align: center;
       pointer-events: none;
     }
 
-    .tabsInner{
+    .siteAiBtn{
       pointer-events: auto;
-      display:flex;
-      gap:10px;
-      align-items:center;
-      padding:10px 12px;
-      border-radius: 18px;
-      border: 1px solid rgba(230,232,238,.9);
-      background: rgba(255,255,255,.82);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 12px 40px rgba(0,0,0,.14);
-      overflow: visible;
-    }
-
-    .tab{
       appearance: none;
+      border: 1px solid rgba(17,24,39,.18);
+      background: rgba(255,255,255,.72);
+      backdrop-filter: blur(8px);
+      border-radius: 999px;
+      padding: 10px 14px;
       font-weight: 800;
       font-size: 12px;
       letter-spacing: .2px;
-      color: rgba(17,24,39,.82);
-      padding: 10px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(17,24,39,.10);
-      background: rgba(255,255,255,.70);
-      user-select:none;
-      white-space: nowrap;
-      cursor: default;
-      border: 1px solid rgba(17,24,39,.10);
-    }
-
-    .tabAi{
-      margin-left: auto;
-      position: relative;
+      color: rgba(17,24,39,.86);
       cursor: pointer;
-      display:flex;
-      align-items:center;
-      gap:10px;
-      padding-right: 54px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.12);
     }
 
-    .tabAi:hover{
-      border-color: rgba(245,158,11,.35);
-      box-shadow: 0 8px 20px rgba(0,0,0,.12);
+    .siteAiBtn:hover{
+      border-color: rgba(17,24,39,.28);
+      background: rgba(255,255,255,.84);
     }
 
-    .tabAi .tabHint{
-      position:absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 10px;
-      font-weight: 900;
-      padding: 3px 8px;
-      border-radius: 999px;
-      color: rgba(17,24,39,.92);
-      background: rgba(245,158,11,.22);
-      border: 1px solid rgba(245,158,11,.35);
+    .siteAiSub{
+      pointer-events: none;
+      margin-top: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      color: rgba(17,24,39,.55);
     }
 
-    .tabMic{
-      position:absolute;
+    .siteMic{
+      position: absolute;
       left: 50%;
-      bottom: -6px;
-      transform: translate(-50%, 12px);
+      top: calc(100% + 10px);
+      transform: translate(-50%, 10px);
       opacity: 0;
-      pointer-events:none;
-      display:flex;
-      align-items:center;
-      gap:8px;
+      pointer-events: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       padding: 10px 12px;
       border-radius: 16px;
-      border: 1px solid rgba(17,24,39,.15);
-      background: rgba(255,255,255,.94);
-      box-shadow: 0 18px 60px rgba(0,0,0,.22);
+      border: 1px solid rgba(17,24,39,.16);
+      background: rgba(255,255,255,.92);
+      box-shadow: 0 18px 60px rgba(0,0,0,.18);
       transition: transform .22s ease, opacity .18s ease;
     }
 
-    .tabMic svg{ fill: rgba(17,24,39,.92); display:block; }
+    .siteMic svg{ fill: rgba(17,24,39,.92); display:block; }
 
-    .micLabel{
+    .siteMicLabel{
       font-weight: 900;
       font-size: 12px;
       letter-spacing: .3px;
       color: rgba(17,24,39,.92);
     }
 
-    .tabAi.armed .tabMic{
+    .siteAiCta.armed .siteMic{
       opacity: 1;
       transform: translate(-50%, 0px);
     }
 
-    .micGlow{
+    .siteMicGlow{
       position:absolute;
-      inset: -10px;
+      inset:-10px;
       border-radius: 18px;
       background: rgba(245,158,11,.18);
       opacity: 0;
     }
 
-    .tabAi.on .tabMic .micGlow{
+    .siteAiCta.on .siteMicGlow{
       opacity: 1;
-      animation: glowPulse 1.3s ease-in-out infinite;
+      animation: sitePulse 1.3s ease-in-out infinite;
     }
 
-    @keyframes glowPulse{
+    @keyframes sitePulse{
       0%   { transform: scale(0.92); opacity: .35; }
       50%  { transform: scale(1.06); opacity: .18; }
       100% { transform: scale(0.92); opacity: .35; }
     }
 
-    /* --------------- BOTTOM-RIGHT DOCK --------------- */
+    /* ---------------- Bottom-right dock ---------------- */
 
     .dock{
       position:fixed;
@@ -267,6 +235,7 @@
       gap:10px;
       margin-top:10px;
     }
+
     input[type="text"]{
       flex:1;
       padding:10px 12px;
@@ -276,6 +245,7 @@
       background:#fff;
       font-size:14px;
     }
+
     .go{
       border:0;
       border-radius: 12px;
@@ -286,6 +256,7 @@
       cursor:pointer;
     }
 
+    /* Product cards panel */
     #products{
       display:none;
       margin-top:12px;
@@ -330,34 +301,25 @@
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- Top tab-style CTA -->
-  <div class="topTabs">
-    <div class="tabsInner">
-      <div class="tab">Guitars</div>
-      <div class="tab">Bass</div>
-      <div class="tab">Acoustic</div>
-      <div class="tab">Amps</div>
-      <div class="tab">Accessories</div>
+  <!-- Single blended “nav-like” AI entry -->
+  <div class="siteAiCta" id="siteAiCta">
+    <button class="siteAiBtn" id="siteAiBtn" type="button" aria-label="Authentic AI Gibson Specialist">
+      Authentic AI • Gibson Specialist
+    </button>
+    <div class="siteAiSub">Click to talk</div>
 
-      <!-- The AI tab -->
-      <button class="tab tabAi" id="aiTab" type="button" aria-label="Authentic AI Gibson Specialist">
-        Authentic AI • Gibson Specialist
-        <span class="tabHint">Talk</span>
-
-        <span class="tabMic" id="tabMic" aria-hidden="true">
-          <span class="micGlow"></span>
-          <svg viewBox="0 0 64 64" width="26" height="26">
-            <path d="M32 6c-6.1 0-11 4.9-11 11v14c0 6.1 4.9 11 11 11s11-4.9 11-11V17c0-6.1-4.9-11-11-11zm0 4c3.9 0 7 3.1 7 7v14c0 3.9-3.1 7-7 7s-7-3.1-7-7V17c0-3.9 3.1-7 7-7z"/>
-            <path d="M20 28h24v4H20z"/>
-            <path d="M18 18h28v4H18z"/>
-            <path d="M18 38h28v4H18z"/>
-            <path d="M28 46h8v6h-8z"/>
-            <path d="M24 52h16v4H24z"/>
-            <path d="M17 24h4v16h-4zM43 24h4v16h-4z"/>
-          </svg>
-          <span class="micLabel">Gibson</span>
-        </span>
-      </button>
+    <div class="siteMic" id="siteMic" aria-hidden="true">
+      <span class="siteMicGlow"></span>
+      <svg viewBox="0 0 64 64" width="24" height="24" aria-hidden="true">
+        <path d="M32 6c-6.1 0-11 4.9-11 11v14c0 6.1 4.9 11 11 11s11-4.9 11-11V17c0-6.1-4.9-11-11-11zm0 4c3.9 0 7 3.1 7 7v14c0 3.9-3.1 7-7 7s-7-3.1-7-7V17c0-3.9 3.1-7 7-7z"/>
+        <path d="M20 28h24v4H20z"/>
+        <path d="M18 18h28v4H18z"/>
+        <path d="M18 38h28v4H18z"/>
+        <path d="M28 46h8v6h-8z"/>
+        <path d="M24 52h16v4H24z"/>
+        <path d="M17 24h4v16h-4zM43 24h4v16h-4z"/>
+      </svg>
+      <span class="siteMicLabel">Gibson</span>
     </div>
   </div>
 
@@ -405,7 +367,9 @@
     const micBtn = document.getElementById("micBtn");
     const micLabel = document.getElementById("micLabel");
     const connPill = document.getElementById("connPill");
-    const aiTab = document.getElementById("aiTab");
+
+    const siteAiCta = document.getElementById("siteAiCta");
+    const siteAiBtn = document.getElementById("siteAiBtn");
 
     function escapeHtml(s){
       return String(s)
@@ -443,6 +407,11 @@
       if (state === "error") connPill.classList.add("bad");
     }
 
+    function sendEvent(obj){
+      if (!dc || dc.readyState !== "open") return;
+      dc.send(JSON.stringify(obj));
+    }
+
     async function startVoice(){
       setPill("connecting...");
       micBtn.classList.add("micOn");
@@ -461,13 +430,14 @@
       dc.onopen = () => {
         setPill("connected");
 
+        // “Guide” persona (not bossy)
         sendEvent({
           type: "session.update",
           session: {
             instructions:
-              "You are Gibson's friendly, no-pressure guitar salesperson. Ask 1-2 quick questions, then recommend options. " +
-              "Keep answers short. If the user mentions a model, help them compare. " +
-              "When user asks to 'show' something, respond with [[SHOW: <query>]]."
+              "You are Gibson's friendly, no-pressure guitar guide. Keep answers short and helpful. " +
+              "Ask 1-2 quick questions then offer options. Compare models when asked. " +
+              "When user asks to 'show' something, respond with [[SHOW: <query>]] (no extra brackets)."
           }
         });
 
@@ -476,7 +446,7 @@
           response: {
             modalities: ["audio","text"],
             instructions:
-              "Greet the user warmly. Ask what style of guitar they want (Les Paul, SG, acoustic, bass). Keep it short."
+              "Greet the user warmly. Say you're their Gibson guide and ask what they're shopping for (Les Paul, SG, acoustic, bass, budget). Keep it short."
           }
         });
       };
@@ -518,11 +488,6 @@
       await pc.setRemoteDescription(answer);
     }
 
-    function sendEvent(obj){
-      if (!dc || dc.readyState !== "open") return;
-      dc.send(JSON.stringify(obj));
-    }
-
     function stopVoice(){
       micBtn.classList.remove("micOn");
       micLabel.textContent = "Voice Off";
@@ -540,7 +505,7 @@
       if (audioEl) { try { audioEl.srcObject = null; } catch {} }
       audioEl = null;
 
-      aiTab.classList.remove("on");
+      siteAiCta.classList.remove("on");
     }
 
     micBtn.addEventListener("click", async () => {
@@ -549,23 +514,25 @@
       catch (e) { console.error(e); setPill("error"); stopVoice(); }
     });
 
-    // ---------------- TOP TAB behavior ----------------
-    aiTab.addEventListener("click", () => {
-      aiTab.classList.add("armed");
+    // Blended button: show mic + toggle voice
+    siteAiBtn.addEventListener("click", () => {
+      siteAiCta.classList.add("armed");
       micBtn.click();
     });
 
+    // Click outside: hide popover
     document.addEventListener("click", (e) => {
-      if (!aiTab.contains(e.target)) aiTab.classList.remove("armed");
+      if (!siteAiCta.contains(e.target)) siteAiCta.classList.remove("armed");
     });
 
-    function syncTab(){
-      aiTab.classList.toggle("on", micBtn.classList.contains("micOn"));
+    // Sync pulse to voice on/off
+    function syncSiteCta(){
+      siteAiCta.classList.toggle("on", micBtn.classList.contains("micOn"));
     }
-    syncTab();
-    new MutationObserver(syncTab).observe(micBtn, { attributes:true, attributeFilter:["class"] });
+    syncSiteCta();
+    new MutationObserver(syncSiteCta).observe(micBtn, { attributes:true, attributeFilter:["class"] });
 
-    // ---------------- Text input ----------------
+    // Text input (optional, still useful)
     async function handleSend(){
       const txt = textIn.value.trim();
       if (!txt) return;
@@ -586,13 +553,14 @@
         });
         sendEvent({ type: "response.create", response: { modalities: ["audio","text"] } });
       } else {
-        if (!q) addLine("ai", "Click the Authentic AI tab above to talk.");
+        if (!q) addLine("ai", "Click ‘Authentic AI • Gibson Specialist’ to talk.");
       }
     }
 
     sendBtn.addEventListener("click", handleSend);
     textIn.addEventListener("keydown", (e) => { if (e.key === "Enter") handleSend(); });
 
+    // Preload catalog (safe even if CSV empty)
     if (window.__gipson_loadCatalog) window.__gipson_loadCatalog();
     setPill("idle");
   </script>
