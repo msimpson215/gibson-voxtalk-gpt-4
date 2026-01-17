@@ -19,7 +19,6 @@
       --ring2: rgba(0,0,0,.12);
       --circleBg: rgba(255,255,255,.22);
       --circleBgOn: rgba(255,255,255,.30);
-      --circleGlow: rgba(255,255,255,.20);
 
       --ok:#16a34a;
       --bad:#dc2626;
@@ -28,7 +27,7 @@
     *{ box-sizing:border-box }
     body{ margin:0; font-family:var(--font); }
 
-    /* Ensure background sits BEHIND everything */
+    /* Static background */
     .bg{
       position:fixed; inset:0;
       background: url("/assets/gibson-bg.png") center/cover no-repeat;
@@ -42,27 +41,29 @@
       z-index: 1;
     }
 
-    /* -------- NAV-LIKE LINK (NO background) --------
-       Move this down so it sits BELOW your background nav tabs.
+    /* ===== BRAND STRIP LINK (Gibson/Epiphone/.../Garage row) =====
+       This row feels “structural” and legit. We overlay only one clickable text item.
     */
-    .navBlendWrap{
+    .brandStripWrap{
       position:fixed;
-      top: 112px; /* <-- adjust to sit under the tabs */
+      top: 26px;  /* <-- BRAND_ROW_TOP: adjust this to match that top row in your background */
       left: 50%;
       transform: translateX(-50%);
-      width: min(980px, calc(100vw - 40px));
-      z-index: 20;
+      width: min(1120px, calc(100vw - 40px));
+      z-index: 30;
       pointer-events:none;
     }
-    .navBlendRow{
+
+    .brandStripRow{
       display:flex;
-      justify-content:flex-start;
+      align-items:center;
+      justify-content:flex-end; /* keep it near the "Garage" side (right) */
       gap:18px;
       pointer-events:auto;
-      align-items:center;
     }
 
-    .navLink{
+    /* Link styled like that brand-strip text: small, clean, no background */
+    .brandStripLink{
       appearance:none;
       border:0;
       background:transparent;
@@ -70,31 +71,35 @@
       margin:0;
 
       font: inherit;
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: .2px;
-
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .15px;
       cursor:pointer;
-      line-height: 1;
+
+      /* Default: dark-ish (because brand strip is often dark text on white) */
+      color: rgba(15,23,42,.82);
       text-decoration:none;
+      line-height:1;
     }
-    .navLink:hover{
+    .brandStripLink:hover{
       text-decoration: underline;
       text-underline-offset: 4px;
     }
 
-    /* We will set the color in JS by adding either .navTextLight or .navTextDark on <body> */
-    body.navTextLight .navLink{ color: rgba(255,255,255,.92); text-shadow: 0 2px 10px rgba(0,0,0,.35); }
-    body.navTextDark  .navLink{ color: rgba(15,23,42,.86); text-shadow: none; }
+    /* If your brand strip text is WHITE on dark background, switch body class */
+    body.brandTextLight .brandStripLink{
+      color: rgba(255,255,255,.92);
+      text-shadow: 0 2px 10px rgba(0,0,0,.35);
+    }
 
-    /* -------- Circle Voice Button -------- */
+    /* ===== Circle Voice Button ===== */
     .circleWrap{
       position:fixed;
       left: 50%;
-      top: 210px;  /* <-- adjust to place circle where you want */
+      top: 160px; /* <-- circle position; you can tweak */
       transform: translateX(-50%);
-      z-index: 30;
-      display:none;         /* hidden until click */
+      z-index: 40;
+      display:none;
       pointer-events:none;
     }
     .circleWrap.show{
@@ -129,12 +134,9 @@
       width: 54px;
       height: 54px;
       border-radius: 999px;
-
       border: 2px solid var(--ring);
-      box-shadow: 0 0 0 0 var(--circleGlow);
       transition: box-shadow .18s ease, border-color .18s ease;
     }
-
     .circleOn .circleInner{
       border-color: rgba(242,199,107,.95);
       box-shadow: 0 0 0 10px rgba(242,199,107,.18);
@@ -143,16 +145,18 @@
     .circleLabel{
       margin-top: 8px;
       font-size: 12px;
-      font-weight: 700;
+      font-weight: 800;
       letter-spacing:.2px;
       text-align:center;
       user-select:none;
+      color: rgba(15,23,42,.70);
+    }
+    body.brandTextLight .circleLabel{
+      color: rgba(255,255,255,.90);
+      text-shadow: 0 2px 10px rgba(0,0,0,.35);
     }
 
-    body.navTextLight .circleLabel{ color: rgba(255,255,255,.90); text-shadow: 0 2px 10px rgba(0,0,0,.35); }
-    body.navTextDark  .circleLabel{ color: rgba(15,23,42,.82); text-shadow:none; }
-
-    /* -------- Results tray -------- */
+    /* ===== Results tray ===== */
     #resultsTray{
       position:fixed;
       left: 18px;
@@ -231,8 +235,8 @@
       cursor:pointer;
     }
 
-    /* DEBUG outlines so you can SEE it (can turn off in JS below) */
-    body.debug .navBlendWrap{ outline: 2px dashed rgba(255,0,0,.65); }
+    /* DEBUG outlines (turn on/off in JS) */
+    body.debug .brandStripWrap{ outline: 2px dashed rgba(255,0,0,.65); }
     body.debug .circleWrap{ outline: 2px dashed rgba(0,120,255,.65); }
   </style>
 </head>
@@ -241,10 +245,10 @@
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- Blended nav link -->
-  <div class="navBlendWrap">
-    <div class="navBlendRow">
-      <button class="navLink" id="openAiLink" type="button">Gibson Specialist</button>
+  <!-- Brand-strip integrated link (near “Garage” side) -->
+  <div class="brandStripWrap">
+    <div class="brandStripRow">
+      <button class="brandStripLink" id="aiLink" type="button">Authentic AI Guitar Specialist</button>
     </div>
   </div>
 
@@ -271,19 +275,18 @@
 
   <script>
     // ===== QUICK SWITCHES =====
-    // If your nav text in the background is WHITE, keep true.
-    // If your nav text is DARK, set false.
-    const NAV_TEXT_IS_LIGHT = true;
+    // If the brand strip text in your background is DARK on light background: keep false
+    // If that row is WHITE text on a dark background: set true
+    const BRAND_TEXT_IS_LIGHT = false;
 
-    // Turn on temporarily so you can SEE where the link/circle are.
+    // Turn on temporarily so you can SEE where it is.
     const DEBUG = true;
     // ==========================
 
-    document.body.classList.toggle("navTextLight", NAV_TEXT_IS_LIGHT);
-    document.body.classList.toggle("navTextDark", !NAV_TEXT_IS_LIGHT);
+    document.body.classList.toggle("brandTextLight", BRAND_TEXT_IS_LIGHT);
     document.body.classList.toggle("debug", DEBUG);
 
-    const openAiLink = document.getElementById("openAiLink");
+    const aiLink = document.getElementById("aiLink");
     const circleWrap = document.getElementById("circleWrap");
     const circleBtn = document.getElementById("circleBtn");
     const circleLabel = document.getElementById("circleLabel");
@@ -292,8 +295,8 @@
     const resultsLabel = document.getElementById("resultsLabel");
     const closeResults = document.getElementById("closeResults");
 
-    // show/hide circle when link clicked
-    openAiLink.addEventListener("click", () => {
+    // Show/hide circle when the brand-strip link is clicked
+    aiLink.addEventListener("click", () => {
       circleWrap.classList.toggle("show");
       circleWrap.setAttribute("aria-hidden", circleWrap.classList.contains("show") ? "false" : "true");
     });
@@ -311,9 +314,9 @@
     closeResults.addEventListener("click", () => window.__gipson_setResultsVisible(false));
 
     function extractShowQuery(txt){
-      const m = txt.match(/\[\[\s*SHOW\s*:\s*([^\]]+)\]\]/i);
+      const m = txt.match(/^\s*show\s+(.+)$/i);
       if (m) return m[1].trim();
-      const m2 = txt.match(/^\s*show\s+(.+)$/i);
+      const m2 = txt.match(/\[\[\s*SHOW\s*:\s*([^\]]+)\]\]/i);
       if (m2) return m2[1].trim();
       return null;
     }
@@ -377,62 +380,4 @@
           }
 
           if (evt.type === "input_audio_transcription.completed" && evt.text) {
-            const q = extractShowQuery(evt.text);
-            if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
-          }
-        } catch(err){}
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      const sdpResp = await fetch("/session", {
-        method: "POST",
-        body: offer.sdp,
-        headers: { "Content-Type": "application/sdp" }
-      });
-
-      if (!sdpResp.ok) {
-        const t = await sdpResp.text();
-        console.error("Session failed:", t);
-        circleLabel.textContent = "Error";
-        stopVoice();
-        return;
-      }
-
-      const answer = { type: "answer", sdp: await sdpResp.text() };
-      await pc.setRemoteDescription(answer);
-    }
-
-    function stopVoice(){
-      circleBtn.classList.remove("circleOn");
-      circleLabel.textContent = "Click to talk";
-
-      try { if (dc) dc.close(); } catch {}
-      dc = null;
-
-      try { if (pc) pc.close(); } catch {}
-      pc = null;
-
-      if (localStream) {
-        localStream.getTracks().forEach(t => { try{ t.stop(); } catch {} });
-      }
-      localStream = null;
-
-      if (audioEl) {
-        try { audioEl.srcObject = null; } catch {}
-      }
-      audioEl = null;
-    }
-
-    circleBtn.addEventListener("click", async () => {
-      if (pc) return stopVoice();
-      try { await startVoice(); }
-      catch(e){ console.error(e); circleLabel.textContent = "Error"; stopVoice(); }
-    });
-
-    // preload catalog
-    if (window.__gipson_loadCatalog) window.__gipson_loadCatalog();
-  </script>
-</body>
-</html>
+            const q = ext
