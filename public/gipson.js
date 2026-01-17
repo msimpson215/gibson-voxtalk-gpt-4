@@ -1,6 +1,5 @@
 let catalog = null;
 
-const productsWrap = document.getElementById("products");
 const grid = document.getElementById("prodGrid");
 
 function escapeHtml(s){
@@ -62,6 +61,10 @@ function urlSlug(url){
 }
 
 function normalizeRows(rows){
+  // Prefer your “clean” schema if present:
+  // sku,title,price,product_url,image_url
+  const hasClean = rows.length && ("title" in rows[0] || "product_url" in rows[0] || "image_url" in rows[0]);
+
   const get = (r, ...keys) => {
     for (const k of keys){
       if (k in r && String(r[k]).trim() !== "") return String(r[k]).trim();
@@ -70,6 +73,17 @@ function normalizeRows(rows){
   };
 
   return rows.map(r => {
+    if (hasClean){
+      const title = get(r, "title");
+      const product_url = get(r, "product_url");
+      const image_url = get(r, "image_url");
+      const price = normalizePrice(get(r, "price"));
+      const sku = get(r, "sku") || urlSlug(product_url) || title || "unknown-item";
+
+      return { title, product_url, image_url, price, sku, desc: "" };
+    }
+
+    // Fallback to your older scraped columns (what you had before)
     const product_url = get(r, "full-unstyled-link href", "product-card-link");
     const title = get(r, "full-unstyled-link");
     const image_url = get(r, "motion-reduce src", "linked-product__image src");
@@ -102,30 +116,30 @@ async function loadCatalog(){
   return catalog;
 }
 
-// simple scoring search, returns top N
 function searchTop(items, query, n=3){
   const q = query.toLowerCase().trim();
   const tokens = q.split(/\s+/).filter(Boolean);
 
-  const scored = items.map(it => {
-    const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
-    let score = 0;
-    if (hay.includes(q)) score += 100;
-    for (const t of tokens) if (hay.includes(t)) score += 20;
-    return { it, score };
-  }).filter(x => x.score > 0)
+  return items
+    .map(it => {
+      const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
+      let score = 0;
+      if (hay.includes(q)) score += 100;
+      for (const t of tokens) if (hay.includes(t)) score += 20;
+      return { it, score };
+    })
+    .filter(x => x.score > 0)
     .sort((a,b) => b.score - a.score)
     .slice(0, n)
     .map(x => x.it);
-
-  return scored;
 }
 
 function renderProducts(items, query){
   grid.innerHTML = "";
+
   if (!items.length){
-    productsWrap.classList.add("show");
-    grid.innerHTML = `<div style="font-size:12px; color:#64748b;">No matches for "${escapeHtml(query)}"</div>`;
+    if (window.__gipson_setResultsVisible) window.__gipson_setResultsVisible(true, query);
+    grid.innerHTML = `<div style="padding:12px 14px; font-size:12px; color:#64748b;">No matches for "${escapeHtml(query)}"</div>`;
     return;
   }
 
@@ -147,17 +161,16 @@ function renderProducts(items, query){
       <div>
         <h4>${escapeHtml(it.title || "(Untitled)")}</h4>
         <p class="meta">SKU: ${escapeHtml(it.sku || "—")} ${link ? " • " + link : ""}</p>
-        <p class="meta">${escapeHtml(it.desc || "")}</p>
+        ${it.desc ? `<p class="meta">${escapeHtml(it.desc)}</p>` : ``}
         <div class="price">${escapeHtml(price)}</div>
       </div>
     `;
     grid.appendChild(card);
   }
 
-  productsWrap.classList.add("show");
+  if (window.__gipson_setResultsVisible) window.__gipson_setResultsVisible(true, query);
 }
 
-// Exposed hooks called by index.html voice stream
 window.__gipson_loadCatalog = async () => {
   try { await loadCatalog(); }
   catch(e){ console.error(e); }
