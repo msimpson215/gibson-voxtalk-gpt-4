@@ -61,16 +61,18 @@ function urlSlug(url){
 }
 
 function normalizeRows(rows){
-  // Prefer your “clean” schema if present:
-  // sku,title,price,product_url,image_url
-  const hasClean = rows.length && ("title" in rows[0] || "product_url" in rows[0] || "image_url" in rows[0]);
-
   const get = (r, ...keys) => {
     for (const k of keys){
       if (k in r && String(r[k]).trim() !== "") return String(r[k]).trim();
     }
     return "";
   };
+
+  // Prefer clean schema if present:
+  // sku,title,price,product_url,image_url
+  const hasClean = rows.length && (
+    ("title" in rows[0]) || ("product_url" in rows[0]) || ("image_url" in rows[0]) || ("sku" in rows[0])
+  );
 
   return rows.map(r => {
     if (hasClean){
@@ -79,11 +81,10 @@ function normalizeRows(rows){
       const image_url = get(r, "image_url");
       const price = normalizePrice(get(r, "price"));
       const sku = get(r, "sku") || urlSlug(product_url) || title || "unknown-item";
-
       return { title, product_url, image_url, price, sku, desc: "" };
     }
 
-    // Fallback to your older scraped columns (what you had before)
+    // Fallback for older scraped columns
     const product_url = get(r, "full-unstyled-link href", "product-card-link");
     const title = get(r, "full-unstyled-link");
     const image_url = get(r, "motion-reduce src", "linked-product__image src");
@@ -139,14 +140,14 @@ function renderProducts(items, query){
 
   if (!items.length){
     if (window.__gipson_setResultsVisible) window.__gipson_setResultsVisible(true, query);
-    grid.innerHTML = `<div style="padding:12px 14px; font-size:12px; color:#64748b;">No matches for "${escapeHtml(query)}"</div>`;
+    grid.innerHTML = `<div style="padding:12px 14px; font-size:12px; color:rgba(15,23,42,.62); font-weight:800;">No matches for "${escapeHtml(query)}"</div>`;
     return;
   }
 
   for (const it of items){
     const img = it.image_url
       ? `<img src="${escapeHtml(it.image_url)}" alt="">`
-      : `<div style="font-size:11px;color:#64748b;">No image</div>`;
+      : `<div style="font-size:11px;color:rgba(15,23,42,.55); font-weight:800;">No image</div>`;
 
     const link = it.product_url
       ? `<a href="${escapeHtml(it.product_url)}" target="_blank" rel="noopener">Open</a>`
