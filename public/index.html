@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Gibson Voice Sales Demo</title>
+  <title>Gibson Voice Demo (Mock)</title>
 
   <style>
     :root{
@@ -36,23 +36,68 @@
       pointer-events:none;
     }
 
-    /* --------------- BOTTOM-RIGHT DOCK --------------- */
-
-    .dock{
+    /* -------- Blended top button -------- */
+    .topBar{
       position:fixed;
-      right: 18px;
-      bottom: 18px;
-      width: min(420px, calc(100vw - 36px));
-      background: rgba(255,255,255,.92);
-      border:1px solid var(--line);
-      box-shadow: var(--shadow);
-      border-radius: 20px;
-      overflow:hidden;
-      backdrop-filter: blur(10px);
-      z-index: 10;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      width: min(720px, calc(100vw - 36px));
+      display:flex;
+      justify-content:center;
+      pointer-events:none; /* only child clickable */
     }
 
-    .dockHeader{
+    .blendBtn{
+      pointer-events:auto;
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:10px 14px;
+      border-radius:999px;
+      border: 1px solid rgba(255,255,255,.35);
+      background: rgba(17,24,39,.62);
+      backdrop-filter: blur(10px);
+      color:#fff;
+      box-shadow: 0 10px 26px rgba(0,0,0,.18);
+      cursor:pointer;
+      user-select:none;
+    }
+    .blendBtn:active{ transform: translateY(1px); }
+
+    .blendDot{
+      width:10px; height:10px; border-radius:50%;
+      background: rgba(255,255,255,.65);
+    }
+    .blendBtn.micOn .blendDot{
+      background: var(--accent2);
+      box-shadow: 0 0 0 6px rgba(245,158,11,.18);
+    }
+
+    .blendText{ display:flex; flex-direction:column; line-height:1.1; }
+    .blendTitle{ font-weight:800; letter-spacing:.2px; font-size:13px; }
+    .blendSub{ font-size:11px; opacity:.9; }
+
+    /* -------- Mic popover -------- */
+    .popover{
+      position:fixed;
+      top: 64px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 25;
+      width: min(560px, calc(100vw - 36px));
+      border-radius: 22px;
+      border:1px solid rgba(255,255,255,.35);
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(12px);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:none;
+    }
+    .popover.show{ display:block; }
+
+    .popHeader{
       display:flex;
       align-items:center;
       justify-content:space-between;
@@ -62,13 +107,11 @@
       background: linear-gradient(90deg, rgba(17,24,39,.92), rgba(17,24,39,.82));
       color:#fff;
     }
-
     .brand{
       display:flex; align-items:center; gap:10px;
-      font-weight:700;
+      font-weight:800;
       letter-spacing:.2px;
     }
-
     .tag{
       font-size:11px;
       padding:3px 8px;
@@ -76,10 +119,8 @@
       background: rgba(245,158,11,.18);
       border:1px solid rgba(245,158,11,.35);
       color:#fff;
-      font-weight:600;
+      font-weight:700;
     }
-
-    .row{ display:flex; gap:10px; align-items:center; }
 
     .btn{
       appearance:none;
@@ -89,30 +130,12 @@
       border-radius:999px;
       padding:8px 10px;
       cursor:pointer;
-      font-weight:700;
+      font-weight:800;
       display:flex;
       align-items:center;
       gap:8px;
     }
     .btn:active{ transform: translateY(1px); }
-
-    .micDot{
-      width:10px; height:10px; border-radius:50%;
-      background: rgba(255,255,255,.7);
-    }
-    .micOn .micDot{ background: var(--accent2); box-shadow: 0 0 0 6px rgba(245,158,11,.20); }
-
-    .dockBody{ padding:12px 14px; }
-
-    .status{
-      font-size:12px;
-      color: var(--muted);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom:10px;
-    }
 
     .pill{
       font-size:11px;
@@ -126,6 +149,19 @@
     .pill.ok{ color: var(--ok); border-color: rgba(22,163,74,.3); background: rgba(22,163,74,.06); }
     .pill.bad{ color: var(--bad); border-color: rgba(220,38,38,.3); background: rgba(220,38,38,.06); }
 
+    .popBody{ padding:12px 14px; }
+
+    .hintRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    /* Minimal log (optional, can hide if you want) */
     .log{
       height: 120px;
       overflow:auto;
@@ -137,7 +173,7 @@
       line-height:1.35;
     }
     .log p{ margin:0 0 8px 0; }
-    .log .me{ color:#0f172a; font-weight:700; }
+    .log .me{ color:#0f172a; font-weight:800; }
     .log .ai{ color:#111827; }
 
     .controls{
@@ -160,23 +196,52 @@
       padding:10px 12px;
       background: #111827;
       color:#fff;
-      font-weight:800;
+      font-weight:900;
       cursor:pointer;
     }
 
-    /* Product cards panel */
-    #products{
+    /* Results tray (ONLY when products shown) */
+    #resultsTray{
+      position:fixed;
+      left: 18px;
+      right: 18px;
+      bottom: 18px;
+      z-index: 30;
       display:none;
-      margin-top:12px;
-      border-top:1px solid var(--line);
-      padding-top:12px;
+      pointer-events:none;
     }
-    #products.show{ display:block; }
+    #resultsTray.show{ display:block; }
+
+    .trayInner{
+      pointer-events:auto;
+      margin: 0 auto;
+      width: min(980px, 100%);
+      background: rgba(255,255,255,.92);
+      border:1px solid var(--line);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      overflow:hidden;
+    }
+    .trayHeader{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      font-weight:900;
+    }
+    .trayHeader small{ font-weight:700; color:var(--muted); }
 
     #prodGrid{
       display:grid;
-      grid-template-columns: 1fr;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap:10px;
+      padding:12px 14px 14px;
+    }
+    @media (max-width: 860px){
+      #prodGrid{ grid-template-columns: 1fr; }
     }
 
     .prodCard{
@@ -184,7 +249,7 @@
       grid-template-columns: 86px 1fr;
       gap:10px;
       padding:10px;
-      border-radius: 14px;
+      border-radius: 16px;
       border:1px solid var(--line);
       background:#fff;
     }
@@ -199,7 +264,7 @@
     .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
     .prodCard h4{ margin:0 0 4px 0; font-size:14px; }
     .meta{ margin:0; color:var(--muted); font-size:12px; }
-    .price{ margin-top:6px; font-weight:900; }
+    .price{ margin-top:6px; font-weight:950; }
     .meta a{ color:#2563eb; text-decoration:none; }
     .meta a:hover{ text-decoration:underline; }
   </style>
@@ -209,38 +274,57 @@
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- Bottom-right dock -->
-  <div class="dock" id="dock">
-    <div class="dockHeader">
+  <!-- blended button -->
+  <div class="topBar">
+    <div class="blendBtn" id="blendBtn" title="Click to talk">
+      <span class="blendDot" id="blendDot"></span>
+      <div class="blendText">
+        <div class="blendTitle">Authentic AI • Gibson Specialist</div>
+        <div class="blendSub" id="blendSub">Click to talk</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- mic popover -->
+  <div class="popover" id="popover">
+    <div class="popHeader">
       <div class="brand">
         <div>Gibson</div>
-        <div class="tag">Voice Sales Demo</div>
+        <div class="tag">Voice</div>
       </div>
-      <div class="row">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span class="pill" id="connPill">idle</span>
         <button class="btn" id="micBtn" title="Start/Stop Voice">
-          <span class="micDot" id="micDot"></span>
           <span id="micLabel">Voice Off</span>
         </button>
+        <button class="btn" id="closePop" title="Close">✕</button>
       </div>
     </div>
 
-    <div class="dockBody">
-      <div class="status">
-        <div>Tip: type <b>[[SHOW: les paul custom]]</b> or just “show les paul custom”.</div>
-        <div class="pill" id="connPill">idle</div>
+    <div class="popBody">
+      <div class="hintRow">
+        <div>Tip: type <b>[[SHOW: les paul custom]]</b> or “show les paul custom”.</div>
       </div>
 
       <div class="log" id="log"></div>
 
       <div class="controls">
-        <input id="textIn" type="text" placeholder='Try: "Les Paul Custom" or "[[SHOW: SG]]"' />
+        <input id="textIn" type="text" placeholder='Try: "Les Paul Custom" or "show SG"' />
         <button class="go" id="sendBtn">Send</button>
       </div>
+    </div>
+  </div>
 
-      <div id="products">
-        <div style="font-weight:800; margin-bottom:8px;">Top matches</div>
-        <div id="prodGrid"></div>
+  <!-- results tray -->
+  <div id="resultsTray">
+    <div class="trayInner">
+      <div class="trayHeader">
+        <div>Top matches <small id="resultsLabel"></small></div>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <button class="go" id="closeResults" style="padding:8px 10px;">Close</button>
+        </div>
       </div>
+      <div id="prodGrid"></div>
     </div>
   </div>
 
@@ -253,6 +337,16 @@
     const micBtn = document.getElementById("micBtn");
     const micLabel = document.getElementById("micLabel");
     const connPill = document.getElementById("connPill");
+
+    const blendBtn = document.getElementById("blendBtn");
+    const blendDot = document.getElementById("blendDot");
+    const blendSub = document.getElementById("blendSub");
+    const popover = document.getElementById("popover");
+    const closePop = document.getElementById("closePop");
+
+    const resultsTray = document.getElementById("resultsTray");
+    const resultsLabel = document.getElementById("resultsLabel");
+    const closeResults = document.getElementById("closeResults");
 
     function escapeHtml(s){
       return String(s)
@@ -277,11 +371,18 @@
       return null;
     }
 
-    // ---------------- Voice (WebRTC Realtime) ----------------
-    let pc = null;
-    let dc = null;
-    let localStream = null;
-    let audioEl = null;
+    // Expose for gipson.js to toggle tray
+    window.__gipson_setResultsVisible = (visible, query="") => {
+      if (visible){
+        resultsLabel.textContent = query ? `— "${query}"` : "";
+        resultsTray.classList.add("show");
+      } else {
+        resultsTray.classList.remove("show");
+        resultsLabel.textContent = "";
+      }
+    };
+
+    closeResults.addEventListener("click", () => window.__gipson_setResultsVisible(false));
 
     function setPill(state){
       connPill.className = "pill";
@@ -290,9 +391,30 @@
       if (state === "error") connPill.classList.add("bad");
     }
 
+    function openPopover(){
+      popover.classList.add("show");
+    }
+    function closePopover(){
+      popover.classList.remove("show");
+    }
+
+    blendBtn.addEventListener("click", () => {
+      openPopover();
+      // If voice isn’t on, keep it friendly:
+      if (!pc) textIn.focus();
+    });
+    closePop.addEventListener("click", closePopover);
+
+    // ---------------- Voice (WebRTC Realtime) ----------------
+    let pc = null;
+    let dc = null;
+    let localStream = null;
+    let audioEl = null;
+
     async function startVoice(){
       setPill("connecting...");
-      micBtn.classList.add("micOn");
+      blendBtn.classList.add("micOn");
+      blendSub.textContent = "Listening…";
       micLabel.textContent = "Voice On";
 
       pc = new RTCPeerConnection();
@@ -307,10 +429,10 @@
       pc.addTrack(localStream.getTracks()[0]);
 
       dc = pc.createDataChannel("oai-events");
+
       dc.onopen = () => {
         setPill("connected");
 
-        // PRE-SPANISH ORIGINAL (DO NOT CHANGE)
         sendEvent({
           type: "session.update",
           session: {
@@ -321,7 +443,6 @@
           }
         });
 
-        // PRE-SPANISH ORIGINAL (DO NOT CHANGE)
         sendEvent({
           type: "response.create",
           response: {
@@ -375,7 +496,8 @@
     }
 
     function stopVoice(){
-      micBtn.classList.remove("micOn");
+      blendBtn.classList.remove("micOn");
+      blendSub.textContent = "Click to talk";
       micLabel.textContent = "Voice Off";
       setPill("idle");
 
@@ -431,7 +553,7 @@
           response: { modalities: ["audio","text"] }
         });
       } else {
-        if (!q) addLine("ai", "Click Voice On.");
+        if (!q) addLine("ai", "Click Voice On to talk, or type “show …” to browse.");
       }
     }
 
