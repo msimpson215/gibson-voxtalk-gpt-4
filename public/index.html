@@ -28,16 +28,18 @@
     *{ box-sizing:border-box }
     body{ margin:0; font-family:var(--font); }
 
-    /* Static “fake Gibson” background */
+    /* Ensure background sits BEHIND everything */
     .bg{
       position:fixed; inset:0;
       background: url("/assets/gibson-bg.png") center/cover no-repeat;
       transform: translateZ(0);
+      z-index: 0;
     }
     .scrim{
       position:fixed; inset:0;
       background: rgba(255,255,255,0.03);
       pointer-events:none;
+      z-index: 1;
     }
 
     /* -------- NAV-LIKE LINK (NO background) --------
@@ -45,7 +47,7 @@
     */
     .navBlendWrap{
       position:fixed;
-      top: 112px; /* <-- adjust this one number to sit under the tabs */
+      top: 112px; /* <-- adjust to sit under the tabs */
       left: 50%;
       transform: translateX(-50%);
       width: min(980px, calc(100vw - 40px));
@@ -57,6 +59,7 @@
       justify-content:flex-start;
       gap:18px;
       pointer-events:auto;
+      align-items:center;
     }
 
     .navLink{
@@ -71,9 +74,6 @@
       font-weight: 600;
       letter-spacing: .2px;
 
-      /* default: white-ish, like nav-on-dark */
-      color: rgba(255,255,255,.92);
-
       cursor:pointer;
       line-height: 1;
       text-decoration:none;
@@ -83,19 +83,18 @@
       text-underline-offset: 4px;
     }
 
-    /* If your nav text is dark, add class on body: <body class="navDark"> */
-    body.navDark .navLink{ color: rgba(15,23,42,.86); }
+    /* We will set the color in JS by adding either .navTextLight or .navTextDark on <body> */
+    body.navTextLight .navLink{ color: rgba(255,255,255,.92); text-shadow: 0 2px 10px rgba(0,0,0,.35); }
+    body.navTextDark  .navLink{ color: rgba(15,23,42,.86); text-shadow: none; }
 
-    /* -------- Circle Voice Button --------
-       Hidden until nav link is clicked.
-    */
+    /* -------- Circle Voice Button -------- */
     .circleWrap{
       position:fixed;
       left: 50%;
       top: 210px;  /* <-- adjust to place circle where you want */
       transform: translateX(-50%);
       z-index: 30;
-      display:none;
+      display:none;         /* hidden until click */
       pointer-events:none;
     }
     .circleWrap.show{
@@ -141,23 +140,19 @@
       box-shadow: 0 0 0 10px rgba(242,199,107,.18);
     }
 
-    /* tiny status text (optional, subtle) */
     .circleLabel{
       margin-top: 8px;
       font-size: 12px;
       font-weight: 700;
       letter-spacing:.2px;
       text-align:center;
-      color: rgba(255,255,255,.88);
-      text-shadow: 0 2px 8px rgba(0,0,0,.35);
       user-select:none;
     }
-    body.navDark .circleLabel{
-      color: rgba(15,23,42,.82);
-      text-shadow:none;
-    }
 
-    /* -------- Results tray (only when products shown) -------- */
+    body.navTextLight .circleLabel{ color: rgba(255,255,255,.90); text-shadow: 0 2px 10px rgba(0,0,0,.35); }
+    body.navTextDark  .circleLabel{ color: rgba(15,23,42,.82); text-shadow:none; }
+
+    /* -------- Results tray -------- */
     #resultsTray{
       position:fixed;
       left: 18px;
@@ -235,6 +230,10 @@
       font-weight: 900;
       cursor:pointer;
     }
+
+    /* DEBUG outlines so you can SEE it (can turn off in JS below) */
+    body.debug .navBlendWrap{ outline: 2px dashed rgba(255,0,0,.65); }
+    body.debug .circleWrap{ outline: 2px dashed rgba(0,120,255,.65); }
   </style>
 </head>
 
@@ -249,7 +248,7 @@
     </div>
   </div>
 
-  <!-- Circle voice button (hidden until link click) -->
+  <!-- Circle voice button -->
   <div class="circleWrap" id="circleWrap" aria-hidden="true">
     <button class="circleBtn" id="circleBtn" type="button" title="Click to start/stop voice">
       <div class="circleInner"></div>
@@ -271,7 +270,19 @@
   <script src="/gipson.js"></script>
 
   <script>
-    // ---------- UI ----------
+    // ===== QUICK SWITCHES =====
+    // If your nav text in the background is WHITE, keep true.
+    // If your nav text is DARK, set false.
+    const NAV_TEXT_IS_LIGHT = true;
+
+    // Turn on temporarily so you can SEE where the link/circle are.
+    const DEBUG = true;
+    // ==========================
+
+    document.body.classList.toggle("navTextLight", NAV_TEXT_IS_LIGHT);
+    document.body.classList.toggle("navTextDark", !NAV_TEXT_IS_LIGHT);
+    document.body.classList.toggle("debug", DEBUG);
+
     const openAiLink = document.getElementById("openAiLink");
     const circleWrap = document.getElementById("circleWrap");
     const circleBtn = document.getElementById("circleBtn");
@@ -281,7 +292,7 @@
     const resultsLabel = document.getElementById("resultsLabel");
     const closeResults = document.getElementById("closeResults");
 
-    // show circle when link clicked
+    // show/hide circle when link clicked
     openAiLink.addEventListener("click", () => {
       circleWrap.classList.toggle("show");
       circleWrap.setAttribute("aria-hidden", circleWrap.classList.contains("show") ? "false" : "true");
@@ -340,7 +351,7 @@
           type: "session.update",
           session: {
             instructions:
-              "You are Gibson's friendly, no-pressure guitar salesperson. Ask 1-2 quick questions, then recommend options. " +
+              "You are a friendly, no-pressure guitar salesperson. Ask 1-2 quick questions, then recommend options. " +
               "Keep answers short. If the user mentions a model, help them compare. " +
               "When user asks to 'show' something, respond with [[SHOW: <query>]]."
           }
@@ -414,7 +425,6 @@
       audioEl = null;
     }
 
-    // click circle toggles voice
     circleBtn.addEventListener("click", async () => {
       if (pc) return stopVoice();
       try { await startVoice(); }
