@@ -24,7 +24,8 @@ app.post("/session", async (req, res) => {
       return res.status(500).json({ error: "Missing OPENAI_API_KEY in environment" });
     }
 
-    const model = process.env.REALTIME_MODEL || "gpt-realtime";
+    // Use env overrides if provided
+    const model = process.env.REALTIME_MODEL || "gpt-4o-mini-realtime-preview";
     const voice = process.env.REALTIME_VOICE || "alloy";
 
     const sessionConfig = JSON.stringify({
@@ -58,7 +59,7 @@ app.post("/session", async (req, res) => {
   }
 });
 
-// Fallback
+// Fallback for SPA-ish routing
 app.get("*", (req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
