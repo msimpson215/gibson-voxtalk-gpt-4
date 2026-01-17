@@ -7,206 +7,163 @@
 
   <style>
     :root{
-      --ink:#0b1220;
-      --muted:#5b6476;
-      --card:#ffffff;
-      --line:#e6e8ee;
-      --shadow: 0 14px 40px rgba(0,0,0,.12);
-      --radius:16px;
-      --accent:#111827;
-      --accent2:#f59e0b;
-      --bg:#f6f8fb;
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+
+      /* Results tray */
+      --line: rgba(0,0,0,.10);
+      --shadow: 0 18px 46px rgba(0,0,0,.16);
+      --radius: 22px;
+
+      /* Circle */
+      --ring: rgba(255,255,255,.85);
+      --ring2: rgba(0,0,0,.12);
+      --circleBg: rgba(255,255,255,.22);
+      --circleBgOn: rgba(255,255,255,.30);
+      --circleGlow: rgba(255,255,255,.20);
+
       --ok:#16a34a;
       --bad:#dc2626;
-      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    *{box-sizing:border-box}
-    body{ margin:0; font-family:var(--font); background:var(--bg); color:var(--ink); }
 
-    /* Fullscreen background (BRIGHT) */
+    *{ box-sizing:border-box }
+    body{ margin:0; font-family:var(--font); }
+
+    /* Static “fake Gibson” background */
     .bg{
       position:fixed; inset:0;
       background: url("/assets/gibson-bg.png") center/cover no-repeat;
       transform: translateZ(0);
     }
-    /* Light scrim so text is readable but NOT dim */
     .scrim{
       position:fixed; inset:0;
-      background: rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
       pointer-events:none;
     }
 
-    /* -------- Blended top button -------- */
-    .topBar{
+    /* -------- NAV-LIKE LINK (NO background) --------
+       Move this down so it sits BELOW your background nav tabs.
+    */
+    .navBlendWrap{
       position:fixed;
-      top: 18px;
+      top: 112px; /* <-- adjust this one number to sit under the tabs */
       left: 50%;
       transform: translateX(-50%);
+      width: min(980px, calc(100vw - 40px));
       z-index: 20;
-      width: min(720px, calc(100vw - 36px));
+      pointer-events:none;
+    }
+    .navBlendRow{
       display:flex;
-      justify-content:center;
-      pointer-events:none; /* only child clickable */
+      justify-content:flex-start;
+      gap:18px;
+      pointer-events:auto;
     }
 
-    .blendBtn{
-      pointer-events:auto;
-      display:flex;
-      align-items:center;
-      gap:12px;
-      padding:10px 14px;
-      border-radius:999px;
-      border: 1px solid rgba(255,255,255,.35);
-      background: rgba(17,24,39,.62);
-      backdrop-filter: blur(10px);
-      color:#fff;
-      box-shadow: 0 10px 26px rgba(0,0,0,.18);
+    .navLink{
+      appearance:none;
+      border:0;
+      background:transparent;
+      padding:0;
+      margin:0;
+
+      font: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: .2px;
+
+      /* default: white-ish, like nav-on-dark */
+      color: rgba(255,255,255,.92);
+
       cursor:pointer;
+      line-height: 1;
+      text-decoration:none;
+    }
+    .navLink:hover{
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+
+    /* If your nav text is dark, add class on body: <body class="navDark"> */
+    body.navDark .navLink{ color: rgba(15,23,42,.86); }
+
+    /* -------- Circle Voice Button --------
+       Hidden until nav link is clicked.
+    */
+    .circleWrap{
+      position:fixed;
+      left: 50%;
+      top: 210px;  /* <-- adjust to place circle where you want */
+      transform: translateX(-50%);
+      z-index: 30;
+      display:none;
+      pointer-events:none;
+    }
+    .circleWrap.show{
+      display:block;
+      pointer-events:auto;
+    }
+
+    .circleBtn{
+      width: 78px;
+      height: 78px;
+      border-radius: 999px;
+
+      border: 1px solid var(--ring2);
+      background: var(--circleBg);
+
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 40px rgba(0,0,0,.16);
+
+      cursor:pointer;
+      display:grid;
+      place-items:center;
+      user-select:none;
+      transition: transform .06s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .circleBtn:hover{
+      box-shadow: 0 22px 50px rgba(0,0,0,.18);
+      background: var(--circleBgOn);
+    }
+    .circleBtn:active{ transform: translateY(1px); }
+
+    .circleInner{
+      width: 54px;
+      height: 54px;
+      border-radius: 999px;
+
+      border: 2px solid var(--ring);
+      box-shadow: 0 0 0 0 var(--circleGlow);
+      transition: box-shadow .18s ease, border-color .18s ease;
+    }
+
+    .circleOn .circleInner{
+      border-color: rgba(242,199,107,.95);
+      box-shadow: 0 0 0 10px rgba(242,199,107,.18);
+    }
+
+    /* tiny status text (optional, subtle) */
+    .circleLabel{
+      margin-top: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing:.2px;
+      text-align:center;
+      color: rgba(255,255,255,.88);
+      text-shadow: 0 2px 8px rgba(0,0,0,.35);
       user-select:none;
     }
-    .blendBtn:active{ transform: translateY(1px); }
-
-    .blendDot{
-      width:10px; height:10px; border-radius:50%;
-      background: rgba(255,255,255,.65);
-    }
-    .blendBtn.micOn .blendDot{
-      background: var(--accent2);
-      box-shadow: 0 0 0 6px rgba(245,158,11,.18);
+    body.navDark .circleLabel{
+      color: rgba(15,23,42,.82);
+      text-shadow:none;
     }
 
-    .blendText{ display:flex; flex-direction:column; line-height:1.1; }
-    .blendTitle{ font-weight:800; letter-spacing:.2px; font-size:13px; }
-    .blendSub{ font-size:11px; opacity:.9; }
-
-    /* -------- Mic popover -------- */
-    .popover{
-      position:fixed;
-      top: 64px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 25;
-      width: min(560px, calc(100vw - 36px));
-      border-radius: 22px;
-      border:1px solid rgba(255,255,255,.35);
-      background: rgba(255,255,255,.92);
-      backdrop-filter: blur(12px);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-      display:none;
-    }
-    .popover.show{ display:block; }
-
-    .popHeader{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      padding:12px 14px;
-      border-bottom:1px solid var(--line);
-      background: linear-gradient(90deg, rgba(17,24,39,.92), rgba(17,24,39,.82));
-      color:#fff;
-    }
-    .brand{
-      display:flex; align-items:center; gap:10px;
-      font-weight:800;
-      letter-spacing:.2px;
-    }
-    .tag{
-      font-size:11px;
-      padding:3px 8px;
-      border-radius:999px;
-      background: rgba(245,158,11,.18);
-      border:1px solid rgba(245,158,11,.35);
-      color:#fff;
-      font-weight:700;
-    }
-
-    .btn{
-      appearance:none;
-      border:1px solid rgba(255,255,255,.25);
-      background: rgba(255,255,255,.14);
-      color:#fff;
-      border-radius:999px;
-      padding:8px 10px;
-      cursor:pointer;
-      font-weight:800;
-      display:flex;
-      align-items:center;
-      gap:8px;
-    }
-    .btn:active{ transform: translateY(1px); }
-
-    .pill{
-      font-size:11px;
-      padding:3px 8px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:#fff;
-      color: var(--muted);
-      white-space:nowrap;
-    }
-    .pill.ok{ color: var(--ok); border-color: rgba(22,163,74,.3); background: rgba(22,163,74,.06); }
-    .pill.bad{ color: var(--bad); border-color: rgba(220,38,38,.3); background: rgba(220,38,38,.06); }
-
-    .popBody{ padding:12px 14px; }
-
-    .hintRow{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      margin-bottom:10px;
-      font-size:12px;
-      color:var(--muted);
-    }
-
-    /* Minimal log (optional, can hide if you want) */
-    .log{
-      height: 120px;
-      overflow:auto;
-      border:1px solid var(--line);
-      border-radius: 14px;
-      padding:10px;
-      background: rgba(255,255,255,.86);
-      font-size:13px;
-      line-height:1.35;
-    }
-    .log p{ margin:0 0 8px 0; }
-    .log .me{ color:#0f172a; font-weight:800; }
-    .log .ai{ color:#111827; }
-
-    .controls{
-      display:flex;
-      gap:10px;
-      margin-top:10px;
-    }
-    input[type="text"]{
-      flex:1;
-      padding:10px 12px;
-      border-radius: 12px;
-      border:1px solid var(--line);
-      outline:none;
-      background:#fff;
-      font-size:14px;
-    }
-    .go{
-      border:0;
-      border-radius: 12px;
-      padding:10px 12px;
-      background: #111827;
-      color:#fff;
-      font-weight:900;
-      cursor:pointer;
-    }
-
-    /* Results tray (ONLY when products shown) */
+    /* -------- Results tray (only when products shown) -------- */
     #resultsTray{
       position:fixed;
       left: 18px;
       right: 18px;
       bottom: 18px;
-      z-index: 30;
+      z-index: 60;
       display:none;
       pointer-events:none;
     }
@@ -218,7 +175,7 @@
       width: min(980px, 100%);
       background: rgba(255,255,255,.92);
       border:1px solid var(--line);
-      border-radius: 22px;
+      border-radius: var(--radius);
       box-shadow: var(--shadow);
       backdrop-filter: blur(12px);
       overflow:hidden;
@@ -230,9 +187,10 @@
       gap:12px;
       padding:12px 14px;
       border-bottom:1px solid var(--line);
-      font-weight:900;
+      font-weight: 950;
+      letter-spacing:.2px;
     }
-    .trayHeader small{ font-weight:700; color:var(--muted); }
+    .trayHeader small{ font-weight:800; color: rgba(15,23,42,.60); }
 
     #prodGrid{
       display:grid;
@@ -263,10 +221,20 @@
     }
     .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
     .prodCard h4{ margin:0 0 4px 0; font-size:14px; }
-    .meta{ margin:0; color:var(--muted); font-size:12px; }
-    .price{ margin-top:6px; font-weight:950; }
+    .meta{ margin:0; color: rgba(15,23,42,.62); font-size:12px; font-weight: 700; }
+    .price{ margin-top:6px; font-weight: 950; }
     .meta a{ color:#2563eb; text-decoration:none; }
     .meta a:hover{ text-decoration:underline; }
+
+    .trayClose{
+      border:0;
+      border-radius: 12px;
+      padding:8px 10px;
+      background: rgba(15,23,42,.92);
+      color:#fff;
+      font-weight: 900;
+      cursor:pointer;
+    }
   </style>
 </head>
 
@@ -274,55 +242,27 @@
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- blended button -->
-  <div class="topBar">
-    <div class="blendBtn" id="blendBtn" title="Click to talk">
-      <span class="blendDot" id="blendDot"></span>
-      <div class="blendText">
-        <div class="blendTitle">Authentic AI • Gibson Specialist</div>
-        <div class="blendSub" id="blendSub">Click to talk</div>
-      </div>
+  <!-- Blended nav link -->
+  <div class="navBlendWrap">
+    <div class="navBlendRow">
+      <button class="navLink" id="openAiLink" type="button">Gibson Specialist</button>
     </div>
   </div>
 
-  <!-- mic popover -->
-  <div class="popover" id="popover">
-    <div class="popHeader">
-      <div class="brand">
-        <div>Gibson</div>
-        <div class="tag">Voice</div>
-      </div>
-      <div style="display:flex; gap:10px; align-items:center;">
-        <span class="pill" id="connPill">idle</span>
-        <button class="btn" id="micBtn" title="Start/Stop Voice">
-          <span id="micLabel">Voice Off</span>
-        </button>
-        <button class="btn" id="closePop" title="Close">✕</button>
-      </div>
-    </div>
-
-    <div class="popBody">
-      <div class="hintRow">
-        <div>Tip: type <b>[[SHOW: les paul custom]]</b> or “show les paul custom”.</div>
-      </div>
-
-      <div class="log" id="log"></div>
-
-      <div class="controls">
-        <input id="textIn" type="text" placeholder='Try: "Les Paul Custom" or "show SG"' />
-        <button class="go" id="sendBtn">Send</button>
-      </div>
-    </div>
+  <!-- Circle voice button (hidden until link click) -->
+  <div class="circleWrap" id="circleWrap" aria-hidden="true">
+    <button class="circleBtn" id="circleBtn" type="button" title="Click to start/stop voice">
+      <div class="circleInner"></div>
+    </button>
+    <div class="circleLabel" id="circleLabel">Click to talk</div>
   </div>
 
-  <!-- results tray -->
+  <!-- Results tray -->
   <div id="resultsTray">
     <div class="trayInner">
       <div class="trayHeader">
         <div>Top matches <small id="resultsLabel"></small></div>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <button class="go" id="closeResults" style="padding:8px 10px;">Close</button>
-        </div>
+        <button class="trayClose" id="closeResults" type="button">Close</button>
       </div>
       <div id="prodGrid"></div>
     </div>
@@ -331,47 +271,23 @@
   <script src="/gipson.js"></script>
 
   <script>
-    const logEl = document.getElementById("log");
-    const textIn = document.getElementById("textIn");
-    const sendBtn = document.getElementById("sendBtn");
-    const micBtn = document.getElementById("micBtn");
-    const micLabel = document.getElementById("micLabel");
-    const connPill = document.getElementById("connPill");
-
-    const blendBtn = document.getElementById("blendBtn");
-    const blendDot = document.getElementById("blendDot");
-    const blendSub = document.getElementById("blendSub");
-    const popover = document.getElementById("popover");
-    const closePop = document.getElementById("closePop");
+    // ---------- UI ----------
+    const openAiLink = document.getElementById("openAiLink");
+    const circleWrap = document.getElementById("circleWrap");
+    const circleBtn = document.getElementById("circleBtn");
+    const circleLabel = document.getElementById("circleLabel");
 
     const resultsTray = document.getElementById("resultsTray");
     const resultsLabel = document.getElementById("resultsLabel");
     const closeResults = document.getElementById("closeResults");
 
-    function escapeHtml(s){
-      return String(s)
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;");
-    }
+    // show circle when link clicked
+    openAiLink.addEventListener("click", () => {
+      circleWrap.classList.toggle("show");
+      circleWrap.setAttribute("aria-hidden", circleWrap.classList.contains("show") ? "false" : "true");
+    });
 
-    function addLine(who, msg){
-      const p = document.createElement("p");
-      p.innerHTML = `<span class="${who}">${who === "me" ? "You" : "Gibson"}:</span> <span class="${who === "me" ? "" : "ai"}">${escapeHtml(msg)}</span>`;
-      logEl.appendChild(p);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    function extractShowQuery(txt){
-      const m = txt.match(/\[\[\s*SHOW\s*:\s*([^\]]+)\]\]/i);
-      if (m) return m[1].trim();
-      const m2 = txt.match(/^\s*show\s+(.+)$/i);
-      if (m2) return m2[1].trim();
-      return null;
-    }
-
-    // Expose for gipson.js to toggle tray
+    // results tray hooks used by gipson.js
     window.__gipson_setResultsVisible = (visible, query="") => {
       if (visible){
         resultsLabel.textContent = query ? `— "${query}"` : "";
@@ -381,49 +297,36 @@
         resultsLabel.textContent = "";
       }
     };
-
     closeResults.addEventListener("click", () => window.__gipson_setResultsVisible(false));
 
-    function setPill(state){
-      connPill.className = "pill";
-      connPill.textContent = state;
-      if (state === "connected") connPill.classList.add("ok");
-      if (state === "error") connPill.classList.add("bad");
+    function extractShowQuery(txt){
+      const m = txt.match(/\[\[\s*SHOW\s*:\s*([^\]]+)\]\]/i);
+      if (m) return m[1].trim();
+      const m2 = txt.match(/^\s*show\s+(.+)$/i);
+      if (m2) return m2[1].trim();
+      return null;
     }
 
-    function openPopover(){
-      popover.classList.add("show");
-    }
-    function closePopover(){
-      popover.classList.remove("show");
-    }
-
-    blendBtn.addEventListener("click", () => {
-      openPopover();
-      // If voice isn’t on, keep it friendly:
-      if (!pc) textIn.focus();
-    });
-    closePop.addEventListener("click", closePopover);
-
-    // ---------------- Voice (WebRTC Realtime) ----------------
+    // ---------- Voice (WebRTC Realtime) ----------
     let pc = null;
     let dc = null;
     let localStream = null;
     let audioEl = null;
 
+    function sendEvent(obj){
+      if (!dc || dc.readyState !== "open") return;
+      dc.send(JSON.stringify(obj));
+    }
+
     async function startVoice(){
-      setPill("connecting...");
-      blendBtn.classList.add("micOn");
-      blendSub.textContent = "Listening…";
-      micLabel.textContent = "Voice On";
+      circleBtn.classList.add("circleOn");
+      circleLabel.textContent = "Listening…";
 
       pc = new RTCPeerConnection();
 
       audioEl = document.createElement("audio");
       audioEl.autoplay = true;
-      pc.ontrack = (e) => {
-        audioEl.srcObject = e.streams[0];
-      };
+      pc.ontrack = (e) => { audioEl.srcObject = e.streams[0]; };
 
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       pc.addTrack(localStream.getTracks()[0]);
@@ -431,7 +334,7 @@
       dc = pc.createDataChannel("oai-events");
 
       dc.onopen = () => {
-        setPill("connected");
+        circleLabel.textContent = "Voice is live";
 
         sendEvent({
           type: "session.update",
@@ -458,13 +361,13 @@
           const evt = JSON.parse(e.data);
 
           if (evt.type === "response.output_text.done" && evt.text) {
-            addLine("ai", evt.text);
             const q = extractShowQuery(evt.text);
             if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
           }
 
           if (evt.type === "input_audio_transcription.completed" && evt.text) {
-            addLine("me", evt.text);
+            const q = extractShowQuery(evt.text);
+            if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
           }
         } catch(err){}
       };
@@ -481,7 +384,7 @@
       if (!sdpResp.ok) {
         const t = await sdpResp.text();
         console.error("Session failed:", t);
-        setPill("error");
+        circleLabel.textContent = "Error";
         stopVoice();
         return;
       }
@@ -490,16 +393,9 @@
       await pc.setRemoteDescription(answer);
     }
 
-    function sendEvent(obj){
-      if (!dc || dc.readyState !== "open") return;
-      dc.send(JSON.stringify(obj));
-    }
-
     function stopVoice(){
-      blendBtn.classList.remove("micOn");
-      blendSub.textContent = "Click to talk";
-      micLabel.textContent = "Voice Off";
-      setPill("idle");
+      circleBtn.classList.remove("circleOn");
+      circleLabel.textContent = "Click to talk";
 
       try { if (dc) dc.close(); } catch {}
       dc = null;
@@ -518,52 +414,15 @@
       audioEl = null;
     }
 
-    micBtn.addEventListener("click", async () => {
+    // click circle toggles voice
+    circleBtn.addEventListener("click", async () => {
       if (pc) return stopVoice();
-      try {
-        await startVoice();
-      } catch (e) {
-        console.error(e);
-        setPill("error");
-        stopVoice();
-      }
+      try { await startVoice(); }
+      catch(e){ console.error(e); circleLabel.textContent = "Error"; stopVoice(); }
     });
 
-    // ---------------- Text input ----------------
-    async function handleSend(){
-      const txt = textIn.value.trim();
-      if (!txt) return;
-      textIn.value = "";
-      addLine("me", txt);
-
-      const q = extractShowQuery(txt);
-      if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
-
-      if (dc && dc.readyState === "open") {
-        sendEvent({
-          type: "conversation.item.create",
-          item: {
-            type: "message",
-            role: "user",
-            content: [{ type: "input_text", text: txt }]
-          }
-        });
-        sendEvent({
-          type: "response.create",
-          response: { modalities: ["audio","text"] }
-        });
-      } else {
-        if (!q) addLine("ai", "Click Voice On to talk, or type “show …” to browse.");
-      }
-    }
-
-    sendBtn.addEventListener("click", handleSend);
-    textIn.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") handleSend();
-    });
-
+    // preload catalog
     if (window.__gipson_loadCatalog) window.__gipson_loadCatalog();
-    setPill("idle");
   </script>
 </body>
 </html>
