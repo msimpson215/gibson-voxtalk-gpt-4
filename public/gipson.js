@@ -13,6 +13,7 @@ function escapeHtml(s){
 function normalizePrice(p){
   const s = String(p || "").trim();
   if (!s) return "";
+  // handles "$2,999.00" etc
   const n = s.replace(/[$,]/g, "");
   const num = Number(n);
   if (Number.isFinite(num)) return num.toFixed(2);
@@ -52,15 +53,32 @@ function parseCSV(text){
   }
 }
 
+function pick(r, ...keys){
+  for (const k of keys){
+    if (k in r){
+      const v = String(r[k] ?? "").trim();
+      if (v) return v;
+    }
+  }
+  return "";
+}
+
+function urlSlug(url){
+  try{
+    const u = new URL(url);
+    const parts = u.pathname.split("/").filter(Boolean);
+    return parts[parts.length-1] || "";
+  } catch { return ""; }
+}
+
 async function loadCatalog(){
   if (catalog) return catalog;
 
-  const url = "/data/gibson.csv";
-  const r = await fetch(url, { cache:"no-store" });
+  const r = await fetch("/data/gibson.csv", { cache:"no-store" });
 
   if (!r.ok){
-    console.error(`[gipson.js] Missing CSV: ${url} (status ${r.status}).`);
-    console.error(`[gipson.js] You must have: public/data/gibson.csv in your repo.`);
+    console.error(`[gipson.js] CSV fetch failed: ${r.status} ${r.statusText}`);
+    console.error(`[gipson.js] Make sure file exists at: public/data/gibson.csv`);
     catalog = [];
     return catalog;
   }
@@ -68,36 +86,51 @@ async function loadCatalog(){
   const text = await r.text();
   const rows = parseCSV(text);
 
-  catalog = rows.map(r => ({
-    sku: String(r.sku || "").trim(),
-    title: String(r.title || "").trim(),
-    price: normalizePrice(r.price),
-    product_url: String(r.product_url || "").trim(),
-    image_url: String(r.image_url || "").trim()
-  })).filter(x => x.title);
+  // Map YOUR CSV structure into normalized items
+  catalog = rows.map(r => {
+    const product_url = pick(r, "full-unstyled-link href", "product-card-link");
+    const title = pick(r, "full-unstyled-link");
+    const vendor = pick(r, "vendor-name");
+    const flag1 = pick(r, "product-flag");
+    const flag2 = pick(r, "product-flag 2");
+    const price = normalizePrice(pick(r, "price-item"));
 
-  console.log(`[gipson.js] Loaded ${catalog.length} rows from ${url}`);
+    // Image: use motion-reduce src first (best), fallback linked-product__image src
+    const image_url = pick(r, "motion-reduce src", "linked-product__image src");
+
+    const sku = urlSlug(product_url) || title || "unknown-item";
+    const desc = [vendor, flag1, flag2].filter(Boolean).join(" • ");
+
+    return { sku, title, product_url, image_url, price, desc };
+  }).filter(x => x.title && x.product_url);
+
+  console.log(`[gipson.js] Loaded ${catalog.length} items from /data/gibson.csv`);
+  if (catalog[0]) console.log("[gipson.js] Sample product:", catalog[0]);
+
   return catalog;
 }
 
+// simple scoring search
 function searchTop(items, query, n=3){
   const q = query.toLowerCase().trim();
   const tokens = q.split(/\s+/).filter(Boolean);
 
   return items.map(it => {
-    const hay = `${it.title} ${it.sku}`.toLowerCase();
+    const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
     let score = 0;
     if (hay.includes(q)) score += 100;
     for (const t of tokens) if (hay.includes(t)) score += 20;
     return { it, score };
-  }).filter(x => x.score > 0)
-    .sort((a,b) => b.score - a.score)
-    .slice(0, n)
-    .map(x => x.it);
+  })
+  .filter(x => x.score > 0)
+  .sort((a,b) => b.score - a.score)
+  .slice(0, n)
+  .map(x => x.it);
 }
 
 function renderProducts(items, query){
   if (!grid) return;
+
   grid.innerHTML = "";
 
   if (!items.length){
@@ -123,6 +156,7 @@ function renderProducts(items, query){
       <div class="thumb">${img}</div>
       <div>
         <h4>${escapeHtml(it.title || "(Untitled)")}</h4>
+        <p class="meta">${escapeHtml(it.desc || "")}</p>
         <p class="meta">SKU: ${escapeHtml(it.sku || "—")} ${link ? " • " + link : ""}</p>
         <div class="price">${escapeHtml(price)}</div>
       </div>
@@ -133,6 +167,7 @@ function renderProducts(items, query){
   if (window.__gipson_setResultsVisible) window.__gipson_setResultsVisible(true, query);
 }
 
+// Exposed hooks
 window.__gipson_loadCatalog = async () => {
   try { await loadCatalog(); } catch(e){ console.error(e); }
 };
