@@ -9,11 +9,12 @@
     :root{
       --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 
-      /* ===== MOVE THESE TWO NUMBERS ONLY ===== */
-      --ai-top: 26px;        /* move UP/DOWN to sit on the Gibson/Epiphone/.../Garage row */
-      --ai-right: 255px;     /* move LEFT/RIGHT: bigger number = farther LEFT from the right edge */
-      /* ====================================== */
+      /* ===== MOVE ONLY THESE TWO ===== */
+      --ai-top: 26px;      /* up/down */
+      --ai-right: 380px;   /* left/right: bigger number = farther LEFT from the right edge */
+      /* ============================== */
 
+      /* Try to match “Garage” vibe */
       --ai-font-size: 12.5px;
       --ai-font-weight: 600;
       --ai-letter-spacing: .12px;
@@ -45,13 +46,13 @@
       z-index: 1;
     }
 
-    /* ===== ABSOLUTE CLICK TARGET ===== */
+    /* ===== ABSOLUTE CLICK TARGET (this is the “link”) ===== */
     #aiLink{
       position:fixed;
       top: var(--ai-top);
       right: var(--ai-right);
 
-      z-index: 99999;
+      z-index: 999999;
       pointer-events: auto;
 
       appearance:none;
@@ -70,12 +71,15 @@
       cursor:pointer;
       text-decoration:none;
       white-space: nowrap;
+
+      /* DEBUG so you can SEE where it is */
+      outline: 2px dashed rgba(255,0,0,.85);
+      background: rgba(255,0,0,.06);
     }
     #aiLink:hover{
       text-decoration: underline;
       text-underline-offset: 4px;
     }
-
     body.brandTextLight #aiLink{
       color: rgba(255,255,255,.92);
       text-shadow: 0 2px 10px rgba(0,0,0,.35);
@@ -87,7 +91,7 @@
       left: 50%;
       top: 160px;
       transform: translateX(-50%);
-      z-index: 99999;
+      z-index: 999999;
       display:none;
       pointer-events:none;
     }
@@ -142,13 +146,13 @@
       text-shadow: 0 2px 10px rgba(0,0,0,.35);
     }
 
-    /* Results tray */
+    /* ===== Results tray ===== */
     #resultsTray{
       position:fixed;
       left: 18px;
       right: 18px;
       bottom: 18px;
-      z-index: 99999;
+      z-index: 999999;
       display:none;
       pointer-events:none;
     }
@@ -227,9 +231,10 @@
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- EXACTLY PLACE IT HERE -->
+  <!-- The “nav” link (overlay on the background image) -->
   <button id="aiLink" type="button">Authentic AI Guitar Specialist</button>
 
+  <!-- Circle (placeholder for microphone graphic later) -->
   <div class="circleWrap" id="circleWrap" aria-hidden="true">
     <button class="circleBtn" id="circleBtn" type="button" title="Click to start/stop voice">
       <div class="circleInner"></div>
@@ -237,6 +242,7 @@
     <div class="circleLabel" id="circleLabel">Click to talk</div>
   </div>
 
+  <!-- Results tray -->
   <div id="resultsTray">
     <div class="trayInner">
       <div class="trayHeader">
@@ -250,7 +256,8 @@
   <script src="/gipson.js"></script>
 
   <script>
-    const BRAND_TEXT_IS_LIGHT = false; // set true if your brand row text is white
+    // If that brand strip row in your background is WHITE text on dark, set true.
+    const BRAND_TEXT_IS_LIGHT = false;
     document.body.classList.toggle("brandTextLight", BRAND_TEXT_IS_LIGHT);
 
     const aiLink = document.getElementById("aiLink");
@@ -262,11 +269,14 @@
     const resultsLabel = document.getElementById("resultsLabel");
     const closeResults = document.getElementById("closeResults");
 
+    // Show/hide circle when link clicked
     aiLink.addEventListener("click", () => {
+      console.log("AI LINK CLICKED");
       circleWrap.classList.toggle("show");
       circleWrap.setAttribute("aria-hidden", circleWrap.classList.contains("show") ? "false" : "true");
     });
 
+    // Hooks used by gipson.js
     window.__gipson_setResultsVisible = (visible, query="") => {
       if (visible){
         resultsLabel.textContent = query ? `— "${query}"` : "";
@@ -276,6 +286,7 @@
         resultsLabel.textContent = "";
       }
     };
+
     closeResults.addEventListener("click", () => window.__gipson_setResultsVisible(false));
 
     function extractShowQuery(txt){
@@ -286,6 +297,7 @@
       return null;
     }
 
+    // ---------- Voice (WebRTC Realtime) ----------
     let pc = null, dc = null, localStream = null, audioEl = null;
 
     function sendEvent(obj){
@@ -315,9 +327,9 @@
           type: "session.update",
           session: {
             instructions:
-              "You are a friendly, no-pressure guitar salesperson. Ask 1-2 quick questions, then recommend options. " +
+              "You are Gibson's friendly, no-pressure guitar salesperson. Ask 1-2 quick questions, then recommend options. " +
               "Keep answers short. If the user mentions a model, help them compare. " +
-              "When user asks to 'show' something, respond with [[SHOW: <query>]]."
+              "When the user asks to show something, respond with [[SHOW: <query>]]."
           }
         });
 
@@ -378,19 +390,25 @@
       try { if (pc) pc.close(); } catch {}
       pc = null;
 
-      if (localStream) localStream.getTracks().forEach(t => { try{ t.stop(); } catch {} });
+      if (localStream) {
+        localStream.getTracks().forEach(t => { try{ t.stop(); } catch {} });
+      }
       localStream = null;
 
-      if (audioEl) { try { audioEl.srcObject = null; } catch {} }
+      if (audioEl) {
+        try { audioEl.srcObject = null; } catch {}
+      }
       audioEl = null;
     }
 
+    // Circle toggles voice
     circleBtn.addEventListener("click", async () => {
       if (pc) return stopVoice();
       try { await startVoice(); }
       catch(e){ console.error(e); circleLabel.textContent = "Error"; stopVoice(); }
     });
 
+    // preload catalog
     if (window.__gipson_loadCatalog) window.__gipson_loadCatalog();
   </script>
 </body>
