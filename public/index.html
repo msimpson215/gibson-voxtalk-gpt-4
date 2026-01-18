@@ -9,36 +9,33 @@
     :root{
       --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
 
-      /* ===== YOU ADJUST THESE TWO NUMBERS ===== */
-      --brand-row-top: 26px;        /* move UP/DOWN to land on the "Gibson/Epiphone/.../Garage" row */
-      --left-of-garage: 120px;      /* move LEFT of Garage: increase = farther left */
-      /* ======================================= */
+      /* ===== MOVE THESE TWO NUMBERS ONLY ===== */
+      --ai-top: 26px;        /* move UP/DOWN to sit on the Gibson/Epiphone/.../Garage row */
+      --ai-right: 255px;     /* move LEFT/RIGHT: bigger number = farther LEFT from the right edge */
+      /* ====================================== */
 
-      /* Try to match “Garage” style */
       --ai-font-size: 12.5px;
       --ai-font-weight: 600;
       --ai-letter-spacing: .12px;
-
-      /* Results tray */
-      --line: rgba(0,0,0,.10);
-      --shadow: 0 18px 46px rgba(0,0,0,.16);
-      --radius: 22px;
 
       /* Circle */
       --ring: rgba(255,255,255,.85);
       --ring2: rgba(0,0,0,.12);
       --circleBg: rgba(255,255,255,.22);
       --circleBgOn: rgba(255,255,255,.30);
+
+      /* Results tray */
+      --line: rgba(0,0,0,.10);
+      --shadow: 0 18px 46px rgba(0,0,0,.16);
+      --radius: 22px;
     }
 
     *{ box-sizing:border-box }
     body{ margin:0; font-family:var(--font); }
 
-    /* Background image */
     .bg{
       position:fixed; inset:0;
       background: url("/assets/gibson-bg.png") center/cover no-repeat;
-      transform: translateZ(0);
       z-index: 0;
     }
     .scrim{
@@ -48,29 +45,15 @@
       z-index: 1;
     }
 
-    /* ===== BRAND STRIP CLICKABLE LINK ===== */
-    .brandStripWrap{
+    /* ===== ABSOLUTE CLICK TARGET ===== */
+    #aiLink{
       position:fixed;
-      top: var(--brand-row-top);
-      left: 50%;
-      transform: translateX(-50%);
-      width: min(1120px, calc(100vw - 40px));
+      top: var(--ai-top);
+      right: var(--ai-right);
 
-      /* Make it absolutely on top of everything */
-      z-index: 9999;
-
-      /* IMPORTANT: allow clicking */
+      z-index: 99999;
       pointer-events: auto;
-    }
 
-    .brandStripRow{
-      display:flex;
-      align-items:center;
-      justify-content:flex-end;
-      gap:18px;
-    }
-
-    .brandStripLink{
       appearance:none;
       border:0;
       background:transparent;
@@ -81,33 +64,30 @@
       font-size: var(--ai-font-size);
       font-weight: var(--ai-font-weight);
       letter-spacing: var(--ai-letter-spacing);
+      line-height: 1;
 
-      cursor:pointer;
-      line-height:1;
       color: rgba(15,23,42,.82);
+      cursor:pointer;
       text-decoration:none;
-
-      /* THIS pushes it left of Garage */
-      margin-right: var(--left-of-garage);
+      white-space: nowrap;
     }
-    .brandStripLink:hover{
+    #aiLink:hover{
       text-decoration: underline;
       text-underline-offset: 4px;
     }
 
-    /* If your brand-row text is white-on-dark, enable this via body class */
-    body.brandTextLight .brandStripLink{
+    body.brandTextLight #aiLink{
       color: rgba(255,255,255,.92);
       text-shadow: 0 2px 10px rgba(0,0,0,.35);
     }
 
-    /* ===== CIRCLE VOICE BUTTON ===== */
+    /* ===== Circle Voice Button ===== */
     .circleWrap{
       position:fixed;
       left: 50%;
       top: 160px;
       transform: translateX(-50%);
-      z-index: 9999;
+      z-index: 99999;
       display:none;
       pointer-events:none;
     }
@@ -162,13 +142,13 @@
       text-shadow: 0 2px 10px rgba(0,0,0,.35);
     }
 
-    /* ===== Results tray ===== */
+    /* Results tray */
     #resultsTray{
       position:fixed;
       left: 18px;
       right: 18px;
       bottom: 18px;
-      z-index: 9999;
+      z-index: 99999;
       display:none;
       pointer-events:none;
     }
@@ -247,14 +227,9 @@
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- AI link in the brand strip row -->
-  <div class="brandStripWrap">
-    <div class="brandStripRow">
-      <button class="brandStripLink" id="aiLink" type="button">Authentic AI Guitar Specialist</button>
-    </div>
-  </div>
+  <!-- EXACTLY PLACE IT HERE -->
+  <button id="aiLink" type="button">Authentic AI Guitar Specialist</button>
 
-  <!-- Circle voice button -->
   <div class="circleWrap" id="circleWrap" aria-hidden="true">
     <button class="circleBtn" id="circleBtn" type="button" title="Click to start/stop voice">
       <div class="circleInner"></div>
@@ -262,7 +237,6 @@
     <div class="circleLabel" id="circleLabel">Click to talk</div>
   </div>
 
-  <!-- Results tray -->
   <div id="resultsTray">
     <div class="trayInner">
       <div class="trayHeader">
@@ -276,9 +250,7 @@
   <script src="/gipson.js"></script>
 
   <script>
-    // If that top brand row text is WHITE on a dark strip, set true.
-    // If it's dark text on white, keep false.
-    const BRAND_TEXT_IS_LIGHT = false;
+    const BRAND_TEXT_IS_LIGHT = false; // set true if your brand row text is white
     document.body.classList.toggle("brandTextLight", BRAND_TEXT_IS_LIGHT);
 
     const aiLink = document.getElementById("aiLink");
@@ -290,14 +262,11 @@
     const resultsLabel = document.getElementById("resultsLabel");
     const closeResults = document.getElementById("closeResults");
 
-    // GUARANTEED click test
     aiLink.addEventListener("click", () => {
-      console.log("AI LINK CLICKED");
       circleWrap.classList.toggle("show");
       circleWrap.setAttribute("aria-hidden", circleWrap.classList.contains("show") ? "false" : "true");
     });
 
-    // Results tray hooks used by gipson.js
     window.__gipson_setResultsVisible = (visible, query="") => {
       if (visible){
         resultsLabel.textContent = query ? `— "${query}"` : "";
@@ -317,11 +286,7 @@
       return null;
     }
 
-    // ---------- Voice ----------
-    let pc = null;
-    let dc = null;
-    let localStream = null;
-    let audioEl = null;
+    let pc = null, dc = null, localStream = null, audioEl = null;
 
     function sendEvent(obj){
       if (!dc || dc.readyState !== "open") return;
@@ -413,14 +378,10 @@
       try { if (pc) pc.close(); } catch {}
       pc = null;
 
-      if (localStream) {
-        localStream.getTracks().forEach(t => { try{ t.stop(); } catch {} });
-      }
+      if (localStream) localStream.getTracks().forEach(t => { try{ t.stop(); } catch {} });
       localStream = null;
 
-      if (audioEl) {
-        try { audioEl.srcObject = null; } catch {}
-      }
+      if (audioEl) { try { audioEl.srcObject = null; } catch {} }
       audioEl = null;
     }
 
