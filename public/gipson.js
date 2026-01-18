@@ -52,33 +52,31 @@ function parseCSV(text){
   }
 }
 
-function normalizeRows(rows){
-  // Supports your "clean" CSV:
-  // sku,title,price,product_url,image_url
-  const get = (r, ...keys) => {
-    for (const k of keys){
-      if (k in r && String(r[k]).trim() !== "") return String(r[k]).trim();
-    }
-    return "";
-  };
-
-  return rows.map(r => {
-    const sku = get(r, "sku");
-    const title = get(r, "title");
-    const price = normalizePrice(get(r, "price"));
-    const product_url = get(r, "product_url");
-    const image_url = get(r, "image_url");
-    return { sku, title, price, product_url, image_url, desc: "" };
-  });
-}
-
 async function loadCatalog(){
   if (catalog) return catalog;
-  const r = await fetch("/data/gibson.csv", { cache:"no-store" });
-  if (!r.ok) throw new Error(`CSV fetch failed: ${r.status} ${r.statusText}`);
+
+  const url = "/data/gibson.csv";
+  const r = await fetch(url, { cache:"no-store" });
+
+  if (!r.ok){
+    console.error(`[gipson.js] Missing CSV: ${url} (status ${r.status}).`);
+    console.error(`[gipson.js] You must have: public/data/gibson.csv in your repo.`);
+    catalog = [];
+    return catalog;
+  }
+
   const text = await r.text();
   const rows = parseCSV(text);
-  catalog = normalizeRows(rows);
+
+  catalog = rows.map(r => ({
+    sku: String(r.sku || "").trim(),
+    title: String(r.title || "").trim(),
+    price: normalizePrice(r.price),
+    product_url: String(r.product_url || "").trim(),
+    image_url: String(r.image_url || "").trim()
+  })).filter(x => x.title);
+
+  console.log(`[gipson.js] Loaded ${catalog.length} rows from ${url}`);
   return catalog;
 }
 
@@ -86,7 +84,7 @@ function searchTop(items, query, n=3){
   const q = query.toLowerCase().trim();
   const tokens = q.split(/\s+/).filter(Boolean);
 
-  const scored = items.map(it => {
+  return items.map(it => {
     const hay = `${it.title} ${it.sku}`.toLowerCase();
     let score = 0;
     if (hay.includes(q)) score += 100;
@@ -96,13 +94,10 @@ function searchTop(items, query, n=3){
     .sort((a,b) => b.score - a.score)
     .slice(0, n)
     .map(x => x.it);
-
-  return scored;
 }
 
 function renderProducts(items, query){
   if (!grid) return;
-
   grid.innerHTML = "";
 
   if (!items.length){
@@ -138,10 +133,8 @@ function renderProducts(items, query){
   if (window.__gipson_setResultsVisible) window.__gipson_setResultsVisible(true, query);
 }
 
-// Hooks called by index.html
 window.__gipson_loadCatalog = async () => {
-  try { await loadCatalog(); }
-  catch(e){ console.error(e); }
+  try { await loadCatalog(); } catch(e){ console.error(e); }
 };
 
 window.__gipson_showProducts = async (query) => {
