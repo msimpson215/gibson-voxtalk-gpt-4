@@ -10,7 +10,7 @@ function log(msg) {
   logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
 }
 
-/* ---------------- CSV parsing (robust enough for your file) ---------------- */
+/* ---------------- CSV parsing ---------------- */
 
 function parseCSV(text) {
   const rows = [];
@@ -50,33 +50,88 @@ function forceHttps(u) {
   return u ? u.replace(/^http:\/\//i, "https://") : "";
 }
 
-/* ---------------- Your CSV column mapping ----------------
-   Your uploaded gibson.csv headers include things like:
-   - "motion-reduce src"         => image URL
-   - "full-unstyled-link"        => product title
-   - "full-unstyled-link href"   => product link
-   - "price-item"                => price
-   - "vendor-name"               => vendor/brand
-*/
+/* -------- Robust header matching (handles weird scraped headers) -------- */
 
-function get(row, key) {
-  const v = row[key];
-  return (v == null) ? "" : String(v).trim();
+function normKey(k) {
+  return String(k || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[^\w\s-]/g, "");
+}
+
+function getAny(row, candidates) {
+  // Build a normalized lookup table ONCE per row
+  if (!row.__normMap) {
+    const m = new Map();
+    for (const [k, v] of Object.entries(row)) {
+      m.set(normKey(k), v);
+    }
+    row.__normMap = m;
+  }
+
+  // Try direct and normalized matches
+  for (const c of candidates) {
+    const direct = row[c];
+    if (direct != null && String(direct).trim()) return String(direct).trim();
+
+    const viaNorm = row.__normMap.get(normKey(c));
+    if (viaNorm != null && String(viaNorm).trim()) return String(viaNorm).trim();
+  }
+  return "";
 }
 
 function normalizeRow(row) {
-  const title  = get(row, "full-unstyled-link");
-  const url    = get(row, "full-unstyled-link href");
-  const image  = get(row, "motion-reduce src");
-  const price  = get(row, "price-item");
-  const vendor = get(row, "vendor-name");
+  // These cover your scrape format + common variants
+  const title = getAny(row, [
+    "full-unstyled-link",
+    "full unstyled link",
+    "title",
+    "name",
+    "product title"
+  ]);
 
-  // SKU isn't clean in your scrape; try best-effort keys
-  const sku =
-    get(row, "sku") ||
-    get(row, "SKU") ||
-    get(row, "data-sku") ||
-    "";
+  const url = getAny(row, [
+    "full-unstyled-link href",
+    "full unstyled link href",
+    "href",
+    "product url",
+    "url",
+    "link"
+  ]);
+
+  const image = getAny(row, [
+    "motion-reduce src",
+    "motion reduce src",
+    "img src",
+    "image url",
+    "image",
+    "img",
+    "thumbnail"
+  ]);
+
+  const price = getAny(row, [
+    "price-item",
+    "price item",
+    "price",
+    "Price"
+  ]);
+
+  const vendor = getAny(row, [
+    "vendor-name",
+    "vendor name",
+    "vendor",
+    "brand"
+  ]);
+
+  const sku = getAny(row, [
+    "sku",
+    "SKU",
+    "data-sku",
+    "product-sku",
+    "item sku",
+    "item_sku"
+  ]);
 
   return {
     title,
@@ -95,21 +150,42 @@ async function loadProducts() {
   log(`Loading CSV: ${url}`);
 
   const r = await fetch(url, { cache: "no-store" });
+
+  // Critical debug: if it’s not OK, say so
   if (!r.ok) throw new Error(`CSV fetch failed: ${r.status}`);
 
   const text = await r.text();
+
+  // Critical debug: if it’s HTML, call it out
+  const sniff = text.slice(0, 80).replace(/\s+/g, " ");
+  log(`CSV first chars: ${sniff}`);
+
+  if (text.trim().startsWith("<!doctype") || text.trim().startsWith("<html")) {
+    throw new Error("CSV response looks like HTML (wrong file/path/static config)");
+  }
+
   const rows = parseCSV(text);
-  if (!rows.length) throw new Error("CSV empty");
+  if (!rows.length) throw new Error("CSV empty after parse");
 
   const headers = rows[0].map(h => String(h).trim());
+  log(`CSV headers (${headers.length}): ${headers.slice(0, 8).join(" | ")} ...`);
+
   const dataRows = rows.slice(1);
-
-  PRODUCTS = dataRows
+  const normalized = dataRows
     .map(cols => buildRowObject(headers, cols))
-    .map(o => normalizeRow(o))
-    .filter(p => p.title);
+    .map(o => normalizeRow(o));
 
-  log(`Loaded ${PRODUCTS.length} products`);
+  // If we got 0 titles, print why (sample keys)
+  const withTitle = normalized.filter(p => p.title && p.title.trim());
+  PRODUCTS = withTitle;
+
+  log(`Rows parsed: ${normalized.length} | With title: ${withTitle.length}`);
+
+  if (!PRODUCTS.length && normalized.length) {
+    // Show one sample row to debug mapping
+    const sample = normalized[0];
+    log(`Sample normalized row: title="${sample.title}" url="${sample.url}" image="${sample.image}" price="${sample.price}"`);
+  }
 }
 
 function clearCards() {
@@ -182,8 +258,7 @@ function searchProducts(query) {
   })
   .filter(x => x.score > 0)
   .sort((a, b) => b.score - a.score)
-  .slice(0, 6) // change to 3 if you want exactly 3 cards
-  .map(x => x.p);
+  .map(x => x.p); // <-- ALL matches (no slice)
 
   return scored;
 }
@@ -194,7 +269,6 @@ function showProducts(q) {
   renderCards(hits);
 }
 
-// For manual testing in console:
 window.showProducts = showProducts;
 
 /* ---------------- UI open/close ---------------- */
@@ -212,13 +286,12 @@ navTry.addEventListener("click", async (e) => {
   }
 });
 
-/* ---------------- Voice (WebRTC) restart-safe ---------------- */
+/* ---------------- Voice (same as before, but log stays) ---------------- */
 
 let isActive = false;
 let pc = null;
 let dc = null;
 let localStream = null;
-let textBuffer = "";
 
 function setMicState(on) {
   micState.textContent = on ? "ON" : "OFF";
@@ -246,6 +319,8 @@ function safeJsonParse(s) {
   try { return JSON.parse(s); } catch { return null; }
 }
 
+let textBuffer = "";
+
 async function startVoice() {
   if (isActive) return;
   isActive = true;
@@ -264,9 +339,7 @@ async function startVoice() {
 
   pc = new RTCPeerConnection();
 
-  for (const track of localStream.getTracks()) {
-    pc.addTrack(track, localStream);
-  }
+  for (const track of localStream.getTracks()) pc.addTrack(track, localStream);
 
   pc.ontrack = (event) => {
     const audio = ensureAssistantAudioEl();
@@ -275,15 +348,7 @@ async function startVoice() {
 
   dc = pc.createDataChannel("oai-events");
 
-  dc.onopen = () => {
-    log("DataChannel open");
-    // extra runtime reinforcement
-    dc.send(JSON.stringify({
-      type: "session.update",
-      session: { instructions: "Respond ONLY in English. Never respond in Spanish." }
-    }));
-  };
-
+  dc.onopen = () => log("DataChannel open");
   dc.onclose = () => log("DataChannel closed");
 
   dc.onmessage = (e) => {
@@ -307,7 +372,6 @@ async function startVoice() {
       return;
     }
 
-    // fallback plain text scan
     textBuffer += raw;
     const q = tryExtractShowCommand(textBuffer);
     if (q) {
@@ -332,7 +396,6 @@ async function startVoice() {
   }).then(r => r.text());
 
   await pc.setRemoteDescription({ type: "answer", sdp: answerSDP });
-
   log("Voice connected. Click again to stop.");
 }
 
@@ -353,18 +416,11 @@ async function stopVoice() {
 }
 
 micBtn.addEventListener("click", async () => {
-  micBtn.disabled = false;
-  micBtn.style.pointerEvents = "auto";
-
   try {
     if (!isActive) await startVoice();
     else await stopVoice();
   } catch (err) {
     log(`VOICE ERROR: ${err.message}`);
-    await stopVoice(); // hard reset so you never get “stuck”
+    await stopVoice();
   }
-});
-
-window.addEventListener("beforeunload", () => {
-  try { stopVoice(); } catch {}
 });
