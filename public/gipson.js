@@ -10,9 +10,9 @@ function log(msg) {
   logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
 }
 
-// ---------------- CSV parsing ----------------
+/* ---------------- CSV parsing (robust enough for your file) ---------------- */
+
 function parseCSV(text) {
-  // Handles quoted fields and commas
   const rows = [];
   let row = [];
   let cur = "";
@@ -46,87 +46,37 @@ function buildRowObject(headers, cols) {
   return o;
 }
 
-function normKey(k) {
-  return String(k || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .replace(/[^\w\s-]/g, "");
-}
-
-function getAny(row, candidates) {
-  // row: original keys
-  // candidates: possible original headers
-  // also tries normalized match
-  const normMap = row.__normMap || (() => {
-    const m = new Map();
-    for (const [k, v] of Object.entries(row)) {
-      m.set(normKey(k), v);
-    }
-    row.__normMap = m;
-    return m;
-  })();
-
-  for (const c of candidates) {
-    const direct = row[c];
-    if (direct != null && String(direct).trim()) return String(direct).trim();
-
-    const viaNorm = normMap.get(normKey(c));
-    if (viaNorm != null && String(viaNorm).trim()) return String(viaNorm).trim();
-  }
-  return "";
-}
-
 function forceHttps(u) {
   return u ? u.replace(/^http:\/\//i, "https://") : "";
 }
 
-// Your CSV (from the file you uploaded) uses these headers:
-// - image: "motion-reduce src"
-// - url:   "full-unstyled-link href"
-// - title: "full-unstyled-link"
-// - price: "price-item"
-// - vendor:"vendor-name"
+/* ---------------- Your CSV column mapping ----------------
+   Your uploaded gibson.csv headers include things like:
+   - "motion-reduce src"         => image URL
+   - "full-unstyled-link"        => product title
+   - "full-unstyled-link href"   => product link
+   - "price-item"                => price
+   - "vendor-name"               => vendor/brand
+*/
+
+function get(row, key) {
+  const v = row[key];
+  return (v == null) ? "" : String(v).trim();
+}
+
 function normalizeRow(row) {
-  const title = getAny(row, [
-    "full-unstyled-link",
-    "title",
-    "name"
-  ]);
+  const title  = get(row, "full-unstyled-link");
+  const url    = get(row, "full-unstyled-link href");
+  const image  = get(row, "motion-reduce src");
+  const price  = get(row, "price-item");
+  const vendor = get(row, "vendor-name");
 
-  const url = getAny(row, [
-    "full-unstyled-link href",
-    "product url",
-    "url",
-    "link"
-  ]);
-
-  const image = getAny(row, [
-    "motion-reduce src",
-    "image url",
-    "image",
-    "img"
-  ]);
-
-  const price = getAny(row, [
-    "price-item",
-    "price",
-    "Price"
-  ]);
-
-  const vendor = getAny(row, [
-    "vendor-name",
-    "vendor",
-    "brand"
-  ]);
-
-  // SKU isn’t clean in your scrape; we’ll attempt a few, otherwise blank.
-  const sku = getAny(row, [
-    "sku",
-    "SKU",
-    "data-sku",
-    "product-sku"
-  ]);
+  // SKU isn't clean in your scrape; try best-effort keys
+  const sku =
+    get(row, "sku") ||
+    get(row, "SKU") ||
+    get(row, "data-sku") ||
+    "";
 
   return {
     title,
@@ -134,8 +84,7 @@ function normalizeRow(row) {
     image: forceHttps(image),
     price,
     vendor,
-    sku,
-    raw: row
+    sku
   };
 }
 
@@ -153,9 +102,8 @@ async function loadProducts() {
   if (!rows.length) throw new Error("CSV empty");
 
   const headers = rows[0].map(h => String(h).trim());
-  log(`CSV headers loaded (${headers.length}): ${headers.slice(0, 6).join(" | ")} ...`);
-
   const dataRows = rows.slice(1);
+
   PRODUCTS = dataRows
     .map(cols => buildRowObject(headers, cols))
     .map(o => normalizeRow(o))
@@ -170,7 +118,6 @@ function clearCards() {
 
 function renderCards(list) {
   clearCards();
-
   if (!list.length) {
     cardsEl.innerHTML = `<div style="color:#5b6476;font-size:12px;">No matches.</div>`;
     return;
@@ -185,8 +132,6 @@ function renderCards(list) {
     img.alt = p.title || "Guitar";
     img.loading = "lazy";
     img.src = p.image || "";
-
-    // If hotlink fails, hide the image cleanly
     img.onerror = () => { img.style.display = "none"; };
 
     const body = document.createElement("div");
@@ -229,7 +174,6 @@ function searchProducts(query) {
   const scored = PRODUCTS.map(p => {
     const hay = `${p.title} ${p.vendor} ${p.price} ${p.url}`.toLowerCase();
     let score = 0;
-
     if (hay.includes(q)) score += 12;
     for (const part of q.split(/\s+/)) {
       if (part.length > 2 && hay.includes(part)) score += 2;
@@ -238,7 +182,7 @@ function searchProducts(query) {
   })
   .filter(x => x.score > 0)
   .sort((a, b) => b.score - a.score)
-  .slice(0, 6)
+  .slice(0, 6) // change to 3 if you want exactly 3 cards
   .map(x => x.p);
 
   return scored;
@@ -250,10 +194,11 @@ function showProducts(q) {
   renderCards(hits);
 }
 
-// Console helper for manual test:
+// For manual testing in console:
 window.showProducts = showProducts;
 
-// ---------------- UI toggle ----------------
+/* ---------------- UI open/close ---------------- */
+
 navTry.addEventListener("click", async (e) => {
   e.preventDefault();
   drop.classList.toggle("hidden");
@@ -261,21 +206,18 @@ navTry.addEventListener("click", async (e) => {
   if (!PRODUCTS.length) {
     try {
       await loadProducts();
-      // Quick sanity check:
-      // showProducts("sunburst");
     } catch (err) {
       log(`CSV ERROR: ${err.message}`);
     }
   }
 });
 
-// ---------------- Voice (WebRTC) restart-safe ----------------
+/* ---------------- Voice (WebRTC) restart-safe ---------------- */
+
 let isActive = false;
 let pc = null;
 let dc = null;
 let localStream = null;
-
-// Accumulate assistant text to detect [[SHOW: ...]]
 let textBuffer = "";
 
 function setMicState(on) {
@@ -296,7 +238,6 @@ function ensureAssistantAudioEl() {
 }
 
 function tryExtractShowCommand(s) {
-  // Example: [[SHOW: les paul sunburst]]
   const m = s.match(/\[\[\s*SHOW\s*:\s*([^\]]+?)\s*\]\]/i);
   return m ? m[1].trim() : "";
 }
@@ -312,7 +253,6 @@ async function startVoice() {
   textBuffer = "";
   log("Starting voice...");
 
-  // 1) Get session secret
   const sess = await fetch("/session", { method: "POST" }).then(r => r.json());
   if (!sess?.client_secret?.value) {
     isActive = false;
@@ -320,38 +260,28 @@ async function startVoice() {
     throw new Error("Missing client_secret from /session");
   }
 
-  // 2) Mic input
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  // 3) WebRTC peer connection
   pc = new RTCPeerConnection();
 
-  // Send mic audio
   for (const track of localStream.getTracks()) {
     pc.addTrack(track, localStream);
   }
 
-  // Receive assistant audio
   pc.ontrack = (event) => {
     const audio = ensureAssistantAudioEl();
     audio.srcObject = event.streams[0];
   };
 
-  // Data channel (events)
   dc = pc.createDataChannel("oai-events");
 
   dc.onopen = () => {
     log("DataChannel open");
-
-    // Optional: reinforce English-only at runtime too
-    const msg = {
+    // extra runtime reinforcement
+    dc.send(JSON.stringify({
       type: "session.update",
-      session: {
-        instructions:
-          "Respond ONLY in English. Never use Spanish. If user speaks Spanish, reply in English that you only speak English."
-      }
-    };
-    dc.send(JSON.stringify(msg));
+      session: { instructions: "Respond ONLY in English. Never respond in Spanish." }
+    }));
   };
 
   dc.onclose = () => log("DataChannel closed");
@@ -360,30 +290,24 @@ async function startVoice() {
     const raw = String(e.data || "");
     const obj = safeJsonParse(raw);
 
-    // If it's JSON events, look for text deltas / completion.
     if (obj && obj.type) {
-      // Common event types include text deltas like:
-      // "response.output_text.delta" with { delta: "..." }
       if (obj.type === "response.output_text.delta" && obj.delta) {
         textBuffer += obj.delta;
         const q = tryExtractShowCommand(textBuffer);
         if (q) {
           showProducts(q);
-          // clear so it doesn't re-trigger
           textBuffer = textBuffer.replace(/\[\[\s*SHOW[\s\S]*?\]\]/gi, "");
         }
       }
-
       if (obj.type === "response.completed") {
         const q = tryExtractShowCommand(textBuffer);
         if (q) showProducts(q);
         textBuffer = "";
       }
-
       return;
     }
 
-    // Fallback: if it’s plain text, still scan for [[SHOW: ...]]
+    // fallback plain text scan
     textBuffer += raw;
     const q = tryExtractShowCommand(textBuffer);
     if (q) {
@@ -392,7 +316,6 @@ async function startVoice() {
     }
   };
 
-  // SDP exchange
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
 
@@ -438,8 +361,7 @@ micBtn.addEventListener("click", async () => {
     else await stopVoice();
   } catch (err) {
     log(`VOICE ERROR: ${err.message}`);
-    // Hard reset so it never gets stuck
-    await stopVoice();
+    await stopVoice(); // hard reset so you never get “stuck”
   }
 });
 
