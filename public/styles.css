@@ -1,0 +1,136 @@
+/* Gibson Voice Demo — simple styling */
+
+:root{
+  --ink:#0b1220;
+  --muted:#5b6476;
+  --line:#e6e8ee;
+  --shadow: 0 14px 40px rgba(0,0,0,.12);
+  --accent:#111827;
+}
+
+*{ box-sizing:border-box; }
+
+body{
+  margin:0;
+  font-family: Arial, Helvetica, sans-serif;
+  color:var(--ink);
+  background:#f6f7fb;
+}
+
+/* Header */
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:14px 18px;
+  border-bottom:1px solid var(--line);
+  background:#fff;
+}
+
+.brand{
+  font-weight:900;
+  letter-spacing:.6px;
+  font-size:22px;   /* bigger */
+}
+
+.nav-try{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  text-decoration:none;
+  color:var(--accent);
+  font-weight:800;
+  font-size:18px;   /* bigger */
+  line-height:1.05;
+}
+.nav-try .nav-sub{
+  font-weight:650;
+  font-size:14px;   /* bigger */
+  color:var(--muted);
+  margin-top:4px;
+}
+
+/* Main */
+.wrap{ max-width:980px; margin:24px auto; padding:0 16px; }
+
+.drop{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:18px;
+  box-shadow: var(--shadow);
+  padding:14px;
+}
+.hidden{ display:none; }
+
+/* Mic button */
+.mic{
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px;
+  border-radius:16px;
+  border:1px solid var(--line);
+  background:#fff;
+  cursor:pointer;
+}
+.mic:hover{ background:#fafbff; }
+
+.micIcon{ font-size:22px; width:42px; text-align:center; }
+.micText{ display:flex; flex-direction:column; align-items:flex-start; flex:1; }
+.micTitle{ font-weight:900; font-size:18px; } /* bigger */
+.micSub{ color:var(--muted); font-size:13px; margin-top:3px; }
+
+.micState{
+  font-weight:900;
+  font-size:12px;
+  padding:6px 10px;
+  border-radius:999px;
+  border:1px solid var(--line);
+}
+
+/* Cards */
+.panel{ margin-top:14px; }
+
+.cards{
+  margin-top:10px;
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap:12px;
+}
+
+.card{
+  border:1px solid var(--line);
+  border-radius:16px;
+  overflow:hidden;
+  background:#fff;
+}
+
+.cardImg{
+  width:100%;
+  height:150px;
+  object-fit:cover;
+  background:#f0f2f7;
+  display:block;
+}
+
+.cardBody{ padding:12px; }
+.cardTitle{ font-weight:900; font-size:14px; margin:0 0 6px 0; }
+
+.cardMeta{
+  font-size:12px;
+  color:var(--muted);
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+.cardLink{
+  margin-top:10px;
+  display:inline-block;
+  font-weight:900;
+  font-size:12px;
+  text-decoration:none;
+  color:var(--accent);
+}
