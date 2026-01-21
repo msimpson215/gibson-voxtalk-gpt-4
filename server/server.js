@@ -1,67 +1,67 @@
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
-import dotenv from "dotenv";
-
-dotenv.config();
 
 const app = express();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+app.use(express.json());
 
-// Serve /public
-const publicDir = path.join(__dirname, "..", "public");
-app.use(express.static(publicDir));
-
-// Browser posts SDP as text
-app.use(express.text({ type: ["application/sdp", "text/plain"] }));
+// Serve everything in /public so these work:
+// / (index.html), /styles.css, /gipson.js, /data/gibson.csv
+app.use(express.static("public", { extensions: ["html"] }));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 
+/**
+ * POST /session
+ * Returns an OpenAI Realtime session object that includes client_secret.value
+ * Used by the browser to complete WebRTC SDP exchange.
+ */
 app.post("/session", async (req, res) => {
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: "Missing OPENAI_API_KEY in environment" });
-    }
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
 
-    const model = process.env.REALTIME_MODEL || "gpt-realtime";
-    const voice = process.env.REALTIME_VOICE || "alloy";
+    // HARD LOCK: English only. This prevents Spanish responses even if ASR hears “hola”.
+    const instructions = `
+You are a Gibson Guitar Specialist helping users browse guitars from a CSV catalog.
+CRITICAL RULE: Respond ONLY in English. Never respond in Spanish.
+If the user speaks Spanish, reply in English: "I can only speak English."
+Keep responses short, helpful, and friendly.
 
-    const sessionConfig = JSON.stringify({
-      type: "realtime",
-      model,
-      audio: { output: { voice } }
-    });
+When you want the UI to show product cards, output exactly one line like:
+[[SHOW: <search phrase>]]
+Example: [[SHOW: les paul sunburst]]
+    `.trim();
 
-    const fd = new FormData();
-    fd.set("sdp", req.body);
-    fd.set("session", sessionConfig);
+    // Realtime session create
+    // NOTE: If your working deploy uses a different model string, keep your known-good.
+    const body = {
+      model: "gpt-4o-realtime-preview",
+      voice: "alloy",
+      instructions,
 
-    const r = await fetch("https://api.openai.com/v1/realtime/calls", {
+      // Helps stop the “hello -> hola” thing when supported; if it ever errors, remove this block.
+      input_audio_transcription: {
+        model: "gpt-4o-mini-transcribe",
+        language: "en"
+      }
+    };
+
+    const r = await fetch("https://api.openai.com/v1/realtime/sessions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
-      body: fd
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
     });
 
-    if (!r.ok) {
-      const txt = await r.text();
-      console.error("OpenAI /realtime/calls error:", r.status, txt);
-      return res.status(500).send(txt);
-    }
+    const data = await r.json();
+    if (!r.ok) return res.status(r.status).json(data);
 
-    const sdpAnswer = await r.text();
-    res.setHeader("Content-Type", "application/sdp");
-    return res.send(sdpAnswer);
-  } catch (err) {
-    console.error("Session error:", err);
-    return res.status(500).json({ error: "Failed to create realtime session" });
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: String(e?.message || e) });
   }
 });
 
-// Fallback
-app.get("*", (req, res) => {
-  res.sendFile(path.join(publicDir, "index.html"));
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Server listening on ${port}`));
