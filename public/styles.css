@@ -1,4 +1,4 @@
-/* Gibson Voice Demo — simple styling */
+/* Gibson Voice Demo — stable, simple stylesheet */
 
 :root{
   --ink:#0b1220;
@@ -30,7 +30,7 @@ body{
 .brand{
   font-weight:900;
   letter-spacing:.6px;
-  font-size:22px;   /* bigger */
+  font-size:22px;
 }
 
 .nav-try{
@@ -40,18 +40,22 @@ body{
   text-decoration:none;
   color:var(--accent);
   font-weight:800;
-  font-size:18px;   /* bigger */
+  font-size:18px;
   line-height:1.05;
 }
 .nav-try .nav-sub{
   font-weight:650;
-  font-size:14px;   /* bigger */
+  font-size:14px;
   color:var(--muted);
   margin-top:4px;
 }
 
-/* Main */
-.wrap{ max-width:980px; margin:24px auto; padding:0 16px; }
+/* Layout */
+.wrap{
+  max-width:980px;
+  margin:24px auto;
+  padding:0 16px;
+}
 
 .drop{
   background:#fff;
@@ -60,6 +64,7 @@ body{
   box-shadow: var(--shadow);
   padding:14px;
 }
+
 .hidden{ display:none; }
 
 /* Mic button */
@@ -77,10 +82,29 @@ body{
 }
 .mic:hover{ background:#fafbff; }
 
-.micIcon{ font-size:22px; width:42px; text-align:center; }
-.micText{ display:flex; flex-direction:column; align-items:flex-start; flex:1; }
-.micTitle{ font-weight:900; font-size:18px; } /* bigger */
-.micSub{ color:var(--muted); font-size:13px; margin-top:3px; }
+.micIcon{
+  font-size:22px;
+  width:42px;
+  text-align:center;
+}
+
+.micText{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  flex:1;
+}
+
+.micTitle{
+  font-weight:900;
+  font-size:18px;
+}
+
+.micSub{
+  color:var(--muted);
+  font-size:13px;
+  margin-top:3px;
+}
 
 .micState{
   font-weight:900;
@@ -90,8 +114,25 @@ body{
   border:1px solid var(--line);
 }
 
-/* Cards */
+/* Panel + cards */
 .panel{ margin-top:14px; }
+
+.panelRow{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:12px;
+}
+
+.panelTitle{
+  font-weight:900;
+  font-size:14px;
+}
+
+.panelHint{
+  color:var(--muted);
+  font-size:12px;
+}
 
 .cards{
   margin-top:10px;
@@ -116,7 +157,12 @@ body{
 }
 
 .cardBody{ padding:12px; }
-.cardTitle{ font-weight:900; font-size:14px; margin:0 0 6px 0; }
+
+.cardTitle{
+  font-weight:900;
+  font-size:14px;
+  margin:0 0 6px 0;
+}
 
 .cardMeta{
   font-size:12px;
@@ -133,4 +179,18 @@ body{
   font-size:12px;
   text-decoration:none;
   color:var(--accent);
+}
+
+/* Debug log (kept visible but contained) */
+.log{
+  margin-top:12px;
+  padding:10px;
+  border-radius:12px;
+  border:1px dashed var(--line);
+  background:#fbfcff;
+  color:#1f2937;
+  font-size:12px;
+  max-height:180px;
+  overflow:auto;
+  white-space:pre-wrap;
 }
