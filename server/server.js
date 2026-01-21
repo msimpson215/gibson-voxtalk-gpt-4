@@ -1,44 +1,54 @@
 import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// IMPORTANT: /public is one level ABOVE /server
+const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 const app = express();
 app.use(express.json());
 
-// Serve everything in /public so these work:
-// / (index.html), /styles.css, /gipson.js, /data/gibson.csv
-app.use(express.static("public", { extensions: ["html"] }));
+// Serve static files from /public correctly (fixes MIME errors)
+app.use(express.static(PUBLIC_DIR, { extensions: ["html"] }));
 
+// Optional: silence favicon 404
+app.get("/favicon.ico", (req, res) => res.status(204).end());
+
+// Health
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 /**
  * POST /session
- * Returns an OpenAI Realtime session object that includes client_secret.value
- * Used by the browser to complete WebRTC SDP exchange.
+ * Creates OpenAI Realtime session; browser uses returned client_secret.value for WebRTC.
+ * English-only lock included (stops Spanish).
  */
 app.post("/session", async (req, res) => {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
 
-    // HARD LOCK: English only. This prevents Spanish responses even if ASR hears “hola”.
     const instructions = `
-You are a Gibson Guitar Specialist helping users browse guitars from a CSV catalog.
+You are a Gibson Guitar Specialist.
 CRITICAL RULE: Respond ONLY in English. Never respond in Spanish.
 If the user speaks Spanish, reply in English: "I can only speak English."
-Keep responses short, helpful, and friendly.
+Keep answers short and helpful.
 
-When you want the UI to show product cards, output exactly one line like:
+When you want the webpage to show product cards, output exactly:
 [[SHOW: <search phrase>]]
-Example: [[SHOW: les paul sunburst]]
-    `.trim();
+Example: [[SHOW: sunburst]]
+`.trim();
 
-    // Realtime session create
-    // NOTE: If your working deploy uses a different model string, keep your known-good.
+    // Create Realtime session
     const body = {
       model: "gpt-4o-realtime-preview",
       voice: "alloy",
       instructions,
 
-      // Helps stop the “hello -> hola” thing when supported; if it ever errors, remove this block.
+      // If your account/setup ever errors on this, remove this block.
       input_audio_transcription: {
         model: "gpt-4o-mini-transcribe",
         language: "en"
@@ -64,4 +74,4 @@ Example: [[SHOW: les paul sunburst]]
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Server listening on ${port}`));
+app.listen(port, () => console.log(`Listening on ${port}`));
