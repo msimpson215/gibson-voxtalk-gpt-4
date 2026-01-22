@@ -50,7 +50,7 @@ function forceHttps(u) {
   return u ? u.replace(/^http:\/\//i, "https://") : "";
 }
 
-/* -------- Robust header matching (handles weird scraped headers) -------- */
+/* -------- Robust header matching -------- */
 
 function normKey(k) {
   return String(k || "")
@@ -61,7 +61,6 @@ function normKey(k) {
 }
 
 function getAny(row, candidates) {
-  // Build a normalized lookup table ONCE per row
   if (!row.__normMap) {
     const m = new Map();
     for (const [k, v] of Object.entries(row)) {
@@ -70,7 +69,6 @@ function getAny(row, candidates) {
     row.__normMap = m;
   }
 
-  // Try direct and normalized matches
   for (const c of candidates) {
     const direct = row[c];
     if (direct != null && String(direct).trim()) return String(direct).trim();
@@ -82,56 +80,12 @@ function getAny(row, candidates) {
 }
 
 function normalizeRow(row) {
-  // These cover your scrape format + common variants
-  const title = getAny(row, [
-    "full-unstyled-link",
-    "full unstyled link",
-    "title",
-    "name",
-    "product title"
-  ]);
-
-  const url = getAny(row, [
-    "full-unstyled-link href",
-    "full unstyled link href",
-    "href",
-    "product url",
-    "url",
-    "link"
-  ]);
-
-  const image = getAny(row, [
-    "motion-reduce src",
-    "motion reduce src",
-    "img src",
-    "image url",
-    "image",
-    "img",
-    "thumbnail"
-  ]);
-
-  const price = getAny(row, [
-    "price-item",
-    "price item",
-    "price",
-    "Price"
-  ]);
-
-  const vendor = getAny(row, [
-    "vendor-name",
-    "vendor name",
-    "vendor",
-    "brand"
-  ]);
-
-  const sku = getAny(row, [
-    "sku",
-    "SKU",
-    "data-sku",
-    "product-sku",
-    "item sku",
-    "item_sku"
-  ]);
+  const title = getAny(row, ["full-unstyled-link", "title", "name"]);
+  const url   = getAny(row, ["full-unstyled-link href", "href", "url", "link"]);
+  const image = getAny(row, ["motion-reduce src", "img src", "image url", "image"]);
+  const price = getAny(row, ["price-item", "price"]);
+  const vendor = getAny(row, ["vendor-name", "vendor", "brand"]);
+  const sku = getAny(row, ["sku", "SKU", "data-sku"]);
 
   return {
     title,
@@ -150,13 +104,9 @@ async function loadProducts() {
   log(`Loading CSV: ${url}`);
 
   const r = await fetch(url, { cache: "no-store" });
-
-  // Critical debug: if it’s not OK, say so
   if (!r.ok) throw new Error(`CSV fetch failed: ${r.status}`);
 
   const text = await r.text();
-
-  // Critical debug: if it’s HTML, call it out
   const sniff = text.slice(0, 80).replace(/\s+/g, " ");
   log(`CSV first chars: ${sniff}`);
 
@@ -170,22 +120,13 @@ async function loadProducts() {
   const headers = rows[0].map(h => String(h).trim());
   log(`CSV headers (${headers.length}): ${headers.slice(0, 8).join(" | ")} ...`);
 
-  const dataRows = rows.slice(1);
-  const normalized = dataRows
+  const normalized = rows.slice(1)
     .map(cols => buildRowObject(headers, cols))
     .map(o => normalizeRow(o));
 
-  // If we got 0 titles, print why (sample keys)
-  const withTitle = normalized.filter(p => p.title && p.title.trim());
-  PRODUCTS = withTitle;
+  PRODUCTS = normalized.filter(p => p.title && p.title.trim());
 
-  log(`Rows parsed: ${normalized.length} | With title: ${withTitle.length}`);
-
-  if (!PRODUCTS.length && normalized.length) {
-    // Show one sample row to debug mapping
-    const sample = normalized[0];
-    log(`Sample normalized row: title="${sample.title}" url="${sample.url}" image="${sample.image}" price="${sample.price}"`);
-  }
+  log(`Rows parsed: ${normalized.length} | With title: ${PRODUCTS.length}`);
 }
 
 function clearCards() {
@@ -247,20 +188,19 @@ function searchProducts(query) {
   const q = String(query || "").toLowerCase().trim();
   if (!q) return [];
 
-  const scored = PRODUCTS.map(p => {
-    const hay = `${p.title} ${p.vendor} ${p.price} ${p.url}`.toLowerCase();
-    let score = 0;
-    if (hay.includes(q)) score += 12;
-    for (const part of q.split(/\s+/)) {
-      if (part.length > 2 && hay.includes(part)) score += 2;
-    }
-    return { p, score };
-  })
-  .filter(x => x.score > 0)
-  .sort((a, b) => b.score - a.score)
-  .map(x => x.p); // <-- ALL matches (no slice)
-
-  return scored;
+  return PRODUCTS
+    .map(p => {
+      const hay = `${p.title} ${p.vendor} ${p.price}`.toLowerCase();
+      let score = 0;
+      if (hay.includes(q)) score += 12;
+      for (const part of q.split(/\s+/)) {
+        if (part.length > 2 && hay.includes(part)) score += 2;
+      }
+      return { p, score };
+    })
+    .filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(x => x.p); // ALL matches (no slice)
 }
 
 function showProducts(q) {
@@ -286,12 +226,13 @@ navTry.addEventListener("click", async (e) => {
   }
 });
 
-/* ---------------- Voice (same as before, but log stays) ---------------- */
+/* ---------------- Voice (restart-safe) ---------------- */
 
 let isActive = false;
 let pc = null;
 let dc = null;
 let localStream = null;
+let textBuffer = "";
 
 function setMicState(on) {
   micState.textContent = on ? "ON" : "OFF";
@@ -319,7 +260,38 @@ function safeJsonParse(s) {
   try { return JSON.parse(s); } catch { return null; }
 }
 
-let textBuffer = "";
+function resetVoiceState() {
+  isActive = false;
+  textBuffer = "";
+  dc = null;
+  pc = null;
+  localStream = null;
+  setMicState(false);
+}
+
+async function stopVoice() {
+  log("Stopping voice...");
+  try { dc?.close(); } catch {}
+  try { pc?.close(); } catch {}
+  try { localStream?.getTracks()?.forEach(t => t.stop()); } catch {}
+  resetVoiceState();
+  log("Voice stopped. You can click again.");
+}
+
+function handleAssistantTextDelta(deltaText) {
+  if (!deltaText) return;
+  textBuffer += deltaText;
+
+  const q = tryExtractShowCommand(textBuffer);
+  if (q) {
+    showProducts(q);
+    // remove the command so it doesn't retrigger
+    textBuffer = textBuffer.replace(/\[\[\s*SHOW[\s\S]*?\]\]/gi, "");
+  }
+
+  // keep buffer from growing forever
+  if (textBuffer.length > 8000) textBuffer = textBuffer.slice(-2000);
+}
 
 async function startVoice() {
   if (isActive) return;
@@ -330,8 +302,7 @@ async function startVoice() {
 
   const sess = await fetch("/session", { method: "POST" }).then(r => r.json());
   if (!sess?.client_secret?.value) {
-    isActive = false;
-    setMicState(false);
+    await stopVoice();
     throw new Error("Missing client_secret from /session");
   }
 
@@ -348,7 +319,17 @@ async function startVoice() {
 
   dc = pc.createDataChannel("oai-events");
 
-  dc.onopen = () => log("DataChannel open");
+  dc.onopen = () => {
+    log("DataChannel open");
+    // Reinforce English-only + SHOW behavior at runtime too
+    dc.send(JSON.stringify({
+      type: "session.update",
+      session: {
+        instructions: "Respond ONLY in English. If user asks to see/list/browse guitars, output [[SHOW: ...]]."
+      }
+    }));
+  };
+
   dc.onclose = () => log("DataChannel closed");
 
   dc.onmessage = (e) => {
@@ -356,15 +337,18 @@ async function startVoice() {
     const obj = safeJsonParse(raw);
 
     if (obj && obj.type) {
-      if (obj.type === "response.output_text.delta" && obj.delta) {
-        textBuffer += obj.delta;
-        const q = tryExtractShowCommand(textBuffer);
-        if (q) {
-          showProducts(q);
-          textBuffer = textBuffer.replace(/\[\[\s*SHOW[\s\S]*?\]\]/gi, "");
-        }
-      }
+      // Different models/versions can emit different event types.
+      // We handle a broad set so SHOW triggers reliably.
+      if (obj.delta) handleAssistantTextDelta(String(obj.delta));
+      if (obj.text) handleAssistantTextDelta(String(obj.text));
+      if (obj.output_text) handleAssistantTextDelta(String(obj.output_text));
+
+      // Common delta types
+      if (obj.type === "response.output_text.delta" && obj.delta) handleAssistantTextDelta(String(obj.delta));
+      if (obj.type === "response.text.delta" && obj.delta) handleAssistantTextDelta(String(obj.delta));
+      if (obj.type === "response.output_text.done" && obj.text) handleAssistantTextDelta(String(obj.text));
       if (obj.type === "response.completed") {
+        // final sweep
         const q = tryExtractShowCommand(textBuffer);
         if (q) showProducts(q);
         textBuffer = "";
@@ -372,12 +356,8 @@ async function startVoice() {
       return;
     }
 
-    textBuffer += raw;
-    const q = tryExtractShowCommand(textBuffer);
-    if (q) {
-      showProducts(q);
-      textBuffer = textBuffer.replace(/\[\[\s*SHOW[\s\S]*?\]\]/gi, "");
-    }
+    // Fallback: raw text
+    handleAssistantTextDelta(raw);
   };
 
   const offer = await pc.createOffer();
@@ -396,23 +376,8 @@ async function startVoice() {
   }).then(r => r.text());
 
   await pc.setRemoteDescription({ type: "answer", sdp: answerSDP });
+
   log("Voice connected. Click again to stop.");
-}
-
-async function stopVoice() {
-  log("Stopping voice...");
-  isActive = false;
-
-  try { dc?.close(); } catch {}
-  try { pc?.close(); } catch {}
-  try { localStream?.getTracks()?.forEach(t => t.stop()); } catch {}
-
-  dc = null;
-  pc = null;
-  localStream = null;
-
-  setMicState(false);
-  log("Voice stopped. You can click again.");
 }
 
 micBtn.addEventListener("click", async () => {
@@ -421,6 +386,6 @@ micBtn.addEventListener("click", async () => {
     else await stopVoice();
   } catch (err) {
     log(`VOICE ERROR: ${err.message}`);
-    await stopVoice();
+    await stopVoice(); // hard reset so the next click works
   }
 });
