@@ -2,53 +2,53 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// __dirname for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// IMPORTANT: /public is one level ABOVE /server
+// IMPORTANT: public is one level up from /server
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 const app = express();
 app.use(express.json());
 
-// Serve static files from /public correctly (fixes MIME errors)
+// Serve static from /public correctly (CSS/JS/CSV)
 app.use(express.static(PUBLIC_DIR, { extensions: ["html"] }));
 
-// Optional: silence favicon 404
 app.get("/favicon.ico", (req, res) => res.status(204).end());
 
-// Health
 app.get("/health", (req, res) => res.json({ ok: true }));
 
-/**
- * POST /session
- * Creates OpenAI Realtime session; browser uses returned client_secret.value for WebRTC.
- * English-only lock included (stops Spanish).
- */
 app.post("/session", async (req, res) => {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
 
     const instructions = `
-You are a Gibson Guitar Specialist.
-CRITICAL RULE: Respond ONLY in English. Never respond in Spanish.
-If the user speaks Spanish, reply in English: "I can only speak English."
-Keep answers short and helpful.
+You are a Gibson Guitar Specialist helping a user browse guitars from the on-page catalog.
 
-When you want the webpage to show product cards, output exactly:
+RULES:
+- Respond ONLY in English. Never respond in Spanish.
+- Keep replies short and helpful.
+
+PRODUCT SHOW COMMAND (REQUIRED):
+If the user asks to see, show, pull up, list, compare, browse, or view guitars, you MUST output a SHOW command.
+
+Output format (exactly):
 [[SHOW: <search phrase>]]
-Example: [[SHOW: sunburst]]
+
+Examples:
+User: "show sunburst" -> [[SHOW: sunburst]]
+User: "show les paul custom" -> [[SHOW: les paul custom]]
+User: "what les pauls do you have?" -> [[SHOW: les paul]]
+User: "show custom shop" -> [[SHOW: custom]]
+
+After outputting the SHOW command, you may add ONE short sentence in English.
 `.trim();
 
-    // Create Realtime session
     const body = {
       model: "gpt-4o-realtime-preview",
       voice: "alloy",
       instructions,
-
-      // If your account/setup ever errors on this, remove this block.
       input_audio_transcription: {
         model: "gpt-4o-mini-transcribe",
         language: "en"
