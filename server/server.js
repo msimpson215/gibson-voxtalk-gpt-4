@@ -1,77 +1,67 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 
+dotenv.config();
+
+const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// IMPORTANT: public is one level up from /server
-const PUBLIC_DIR = path.join(__dirname, "..", "public");
+// Serve /public
+const publicDir = path.join(__dirname, "..", "public");
+app.use(express.static(publicDir));
 
-const app = express();
-app.use(express.json());
-
-// Serve static from /public correctly (CSS/JS/CSV)
-app.use(express.static(PUBLIC_DIR, { extensions: ["html"] }));
-
-app.get("/favicon.ico", (req, res) => res.status(204).end());
+// Browser posts SDP as text
+app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 app.post("/session", async (req, res) => {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: "Missing OPENAI_API_KEY in environment" });
+    }
 
-    const instructions = `
-You are a Gibson Guitar Specialist helping a user browse guitars from the on-page catalog.
+    const model = process.env.REALTIME_MODEL || "gpt-realtime";
+    const voice = process.env.REALTIME_VOICE || "alloy";
 
-RULES:
-- Respond ONLY in English. Never respond in Spanish.
-- Keep replies short and helpful.
-
-PRODUCT SHOW COMMAND (REQUIRED):
-If the user asks to see, show, pull up, list, compare, browse, or view guitars, you MUST output a SHOW command.
-
-Output format (exactly):
-[[SHOW: <search phrase>]]
-
-Examples:
-User: "show sunburst" -> [[SHOW: sunburst]]
-User: "show les paul custom" -> [[SHOW: les paul custom]]
-User: "what les pauls do you have?" -> [[SHOW: les paul]]
-User: "show custom shop" -> [[SHOW: custom]]
-
-After outputting the SHOW command, you may add ONE short sentence in English.
-`.trim();
-
-    const body = {
-      model: "gpt-4o-realtime-preview",
-      voice: "alloy",
-      instructions,
-      input_audio_transcription: {
-        model: "gpt-4o-mini-transcribe",
-        language: "en"
-      }
-    };
-
-    const r = await fetch("https://api.openai.com/v1/realtime/sessions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
+    const sessionConfig = JSON.stringify({
+      type: "realtime",
+      model,
+      audio: { output: { voice } }
     });
 
-    const data = await r.json();
-    if (!r.ok) return res.status(r.status).json(data);
+    const fd = new FormData();
+    fd.set("sdp", req.body);
+    fd.set("session", sessionConfig);
 
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: String(e?.message || e) });
+    const r = await fetch("https://api.openai.com/v1/realtime/calls", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: fd
+    });
+
+    if (!r.ok) {
+      const txt = await r.text();
+      console.error("OpenAI /realtime/calls error:", r.status, txt);
+      return res.status(500).send(txt);
+    }
+
+    const sdpAnswer = await r.text();
+    res.setHeader("Content-Type", "application/sdp");
+    return res.send(sdpAnswer);
+  } catch (err) {
+    console.error("Session error:", err);
+    return res.status(500).json({ error: "Failed to create realtime session" });
   }
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Listening on ${port}`));
+// Fallback
+app.get("*", (req, res) => {
+  res.sendFile(path.join(publicDir, "index.html"));
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
