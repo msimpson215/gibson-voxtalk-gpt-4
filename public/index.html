@@ -3,97 +3,128 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Gibson Voice Sales Demo</title>
+  <title>Gibson Voice Demo</title>
 
   <style>
     :root{
       --ink:#0b1220;
       --muted:#5b6476;
-      --card:#ffffff;
       --line:#e6e8ee;
       --shadow: 0 14px 40px rgba(0,0,0,.12);
       --radius:16px;
       --accent:#111827;
-      --accent2:#f59e0b;
-      --bg:#f6f8fb;
+      --gold:#f59e0b;
       --ok:#16a34a;
       --bad:#dc2626;
       --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-    *{box-sizing:border-box}
-    body{ margin:0; font-family:var(--font); background:var(--bg); color:var(--ink); }
+    *{ box-sizing:border-box; }
+    body{ margin:0; font-family:var(--font); color:var(--ink); background:#f6f8fb; }
 
-    /* Fullscreen background (BRIGHT) */
+    /* Background */
     .bg{
       position:fixed; inset:0;
-      background: url("/assets/gibson-bg.png") center/cover no-repeat;
+      background:url("/assets/gibson-bg.png") center/cover no-repeat;
       transform: translateZ(0);
     }
-    /* Light scrim so text is readable but NOT dim */
     .scrim{
       position:fixed; inset:0;
-      background: rgba(255,255,255,0.08);
+      background: rgba(255,255,255,.08);
       pointer-events:none;
     }
 
-    /* --------------- BOTTOM-RIGHT DOCK --------------- */
-
-    .dock{
+    /* Top button */
+    .topbar{
       position:fixed;
-      right: 18px;
-      bottom: 18px;
-      width: min(420px, calc(100vw - 36px));
-      border:1px solid rgba(255,255,255,0.35);
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 50;
+      width: min(780px, calc(100vw - 36px));
+      display:flex;
+      justify-content:flex-end;
+      pointer-events:none;
+    }
+    .navTry{
+      pointer-events:auto;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border:1px solid rgba(255,255,255,.35);
+      background: rgba(255,255,255,.86);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+      cursor:pointer;
+      user-select:none;
+    }
+    .navDot{
+      width:10px; height:10px;
+      border-radius:999px;
+      background: var(--gold);
+      box-shadow: 0 0 0 4px rgba(245,158,11,0.18);
+    }
+    .navTitle{
+      font-weight:900;
+      letter-spacing:.2px;
+      line-height:1.1;
+    }
+    .navSub{
+      font-size:12px;
+      color: var(--muted);
+      font-weight:700;
+      margin-top:2px;
+      line-height:1.1;
+    }
+
+    /* Popover */
+    .panel{
+      position:fixed;
+      top: 70px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 60;
+
+      width: min(520px, calc(100vw - 36px));
       border-radius: 18px;
-      background: rgba(255,255,255,0.86);
+      border:1px solid rgba(255,255,255,.35);
+      background: rgba(255,255,255,.90);
       backdrop-filter: blur(10px);
       box-shadow: var(--shadow);
       overflow:hidden;
-    }
 
-    .dockTop{
+      display:none;
+    }
+    .panel.show{ display:block; }
+
+    .panelTop{
       display:flex;
       align-items:center;
       justify-content:space-between;
       padding: 12px 14px;
       border-bottom:1px solid var(--line);
-      background: rgba(255,255,255,0.86);
     }
-
     .brand{
       display:flex;
-      gap:10px;
       align-items:center;
+      gap:10px;
       font-weight:900;
-      letter-spacing:0.3px;
     }
-    .brand .dot{
-      width:10px; height:10px;
-      border-radius:999px;
-      background: var(--accent2);
-      box-shadow: 0 0 0 4px rgba(245,158,11,0.18);
-    }
-    .sub{
-      font-size:12px;
-      color: var(--muted);
-      margin-top:2px;
-      font-weight:600;
-    }
-
     .pill{
       font-size:12px;
-      font-weight:800;
+      font-weight:900;
       padding:6px 10px;
       border-radius:999px;
       border:1px solid var(--line);
-      color:#111827;
       background:#fff;
+      color:#111827;
       white-space:nowrap;
     }
     .pill.ok{ border-color: rgba(22,163,74,.35); color: var(--ok); }
     .pill.bad{ border-color: rgba(220,38,38,.35); color: var(--bad); }
 
-    .dockBody{ padding: 12px 14px 14px; }
+    .panelBody{ padding: 12px 14px 14px; }
 
     .row{
       display:flex;
@@ -127,6 +158,17 @@
     .micBtn.micOn .mic{ background: rgba(245,158,11,.18); }
     .micBtn.micOn{ border-color: rgba(245,158,11,.45); }
 
+    .closeBtn{
+      appearance:none;
+      border:1px solid var(--line);
+      background:#fff;
+      border-radius: 14px;
+      padding: 10px 12px;
+      cursor:pointer;
+      font-weight:900;
+      white-space:nowrap;
+    }
+
     .log{
       border:1px solid var(--line);
       border-radius: 14px;
@@ -136,12 +178,11 @@
       overflow:auto;
       font-size: 13px;
       line-height: 1.35;
-      color:#0b1220;
     }
     .log p{ margin:0 0 8px 0; }
-    .me{ font-weight:900; }
-    .ai{ font-weight:900; color:#111827; }
-    .aiText{ color:#0b1220; }
+    .log .who{ font-weight:900; }
+    .log .ai{ font-weight:900; color:#111827; }
+    .log .muted{ color: var(--muted); font-weight:700; }
 
     .controls{
       display:flex;
@@ -223,25 +264,36 @@
     a:hover{ text-decoration:underline; }
   </style>
 </head>
+
 <body>
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <div class="dock" role="dialog" aria-label="Gibson Voice Sales Demo">
-    <div class="dockTop">
+  <!-- Top “Try our specialist” button -->
+  <div class="topbar">
+    <div class="navTry" id="navTry" aria-label="Open Gibson Specialist">
+      <span class="navDot"></span>
       <div>
-        <div class="brand">
-          <span class="dot"></span>
-          <div>
-            Gibson
-            <div class="sub">Try our new Guitar Specialist • Click to talk</div>
-          </div>
-        </div>
+        <div class="navTitle">Gibson Specialist</div>
+        <div class="navSub">Try our new AI salesperson • Click to talk</div>
       </div>
-      <div class="pill" id="connPill">idle</div>
+    </div>
+  </div>
+
+  <!-- Popover panel -->
+  <div class="panel" id="panel" role="dialog" aria-label="Gibson Specialist Panel">
+    <div class="panelTop">
+      <div class="brand">
+        <span class="navDot"></span>
+        <div>Gibson</div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div class="pill" id="connPill">idle</div>
+        <button class="closeBtn" id="closeBtn">Close</button>
+      </div>
     </div>
 
-    <div class="dockBody">
+    <div class="panelBody">
       <div class="row">
         <button class="micBtn" id="micBtn">
           <span class="mic">🎙️</span>
@@ -252,12 +304,12 @@
       <div class="log" id="log"></div>
 
       <div class="controls">
-        <input id="textIn" type="text" placeholder='Try: "Les Paul Custom" or "[[SHOW: SG]]"' />
+        <input id="textIn" type="text" placeholder='Try: "Les Paul Custom" or "[[SHOW: Les Paul]]"' />
         <button class="go" id="sendBtn">Send</button>
       </div>
 
       <div id="products">
-        <div style="font-weight:800; margin-bottom:8px;">Top matches</div>
+        <div style="font-weight:900;">Top matches</div>
         <div id="prodGrid"></div>
       </div>
     </div>
@@ -266,44 +318,17 @@
   <script src="/gipson.js"></script>
 
   <script>
+    // ------- Small helpers (scoped to this script only) -------
+    const panel = document.getElementById("panel");
+    const navTry = document.getElementById("navTry");
+    const closeBtn = document.getElementById("closeBtn");
 
-    const logEl = document.getElementById("log");
     const textIn = document.getElementById("textIn");
     const sendBtn = document.getElementById("sendBtn");
+
     const micBtn = document.getElementById("micBtn");
     const micLabel = document.getElementById("micLabel");
     const connPill = document.getElementById("connPill");
-
-    function escapeHtml(s){
-      return String(s)
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;");
-    }
-
-    function addLine(who, msg){
-      const p = document.createElement("p");
-      p.innerHTML = `<span class="${who}">${who === "me" ? "You" : "Gibson"}:</span> <span class="${who === "me" ? "" : "ai"}">${escapeHtml(msg)}</span>`;
-      logEl.appendChild(p);
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-
-    function extractShowQuery(txt){
-      // Primary pattern: [[SHOW: query]]
-      const m = txt.match(/\[\[\s*SHOW\s*:\s([^\]]+)\]\]/i);
-      if (m) return m[1].trim();
-
-      // Helpful fallback: "show les paul custom"
-      const m2 = txt.match(/^\s*show\s+(.+)$/i);
-      if (m2) return m2[1].trim();
-
-      // Another fallback: "list les paul"
-      const m3 = txt.match(/^\s*(list|browse)\s+(.+)$/i);
-      if (m3) return m3[2].trim();
-
-      return null;
-    }
 
     function setPill(state){
       connPill.className = "pill";
@@ -311,6 +336,23 @@
       if (state === "connected") connPill.classList.add("ok");
       if (state === "error") connPill.classList.add("bad");
     }
+
+    function extractShowQuery(txt){
+      const m = txt.match(/\[\[\s*SHOW\s*:\s([^\]]+)\]\]/i);
+      if (m) return m[1].trim();
+      const m2 = txt.match(/^\s*(show|list|browse)\s+(.+)$/i);
+      if (m2) return m2[2].trim();
+      return null;
+    }
+
+    navTry.addEventListener("click", () => {
+      panel.classList.add("show");
+      if (window.__gipson_loadCatalog) window.__gipson_loadCatalog();
+    });
+
+    closeBtn.addEventListener("click", () => {
+      panel.classList.remove("show");
+    });
 
     // ---------------- Voice (WebRTC Realtime) ----------------
     let pc = null;
@@ -367,23 +409,14 @@
       micBtn.classList.add("micOn");
       micLabel.textContent = "Voice On";
 
-      // Always start from a clean slate (fixes "second try" issues)
+      // IMPORTANT: clean slate fixes "2nd try" failures
       hardReset();
 
       pc = new RTCPeerConnection();
 
-      pc.onconnectionstatechange = () => {
-        const s = pc?.connectionState;
-        if (s === "failed" || s === "disconnected" || s === "closed") {
-          setPill("idle");
-        }
-      };
-
       audioEl = document.createElement("audio");
       audioEl.autoplay = true;
-      pc.ontrack = (e) => {
-        audioEl.srcObject = e.streams[0];
-      };
+      pc.ontrack = (e) => { audioEl.srcObject = e.streams[0]; };
 
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       pc.addTrack(localStream.getTracks()[0]);
@@ -396,7 +429,6 @@
         setPill("connected");
         starting = false;
 
-        // Keep it strict so SHOW is reliable
         sendEvent({
           type: "session.update",
           session: {
@@ -410,28 +442,23 @@
           }
         });
 
-        // Initial greeting
         sendEvent({
           type: "response.create",
           response: {
             modalities: ["audio","text"],
             instructions:
-              "Greet the user warmly. Ask what style of guitar they want (Les Paul, SG, acoustic, bass). Keep it short."
+              "Greet the user warmly. Ask what they’re shopping for (Les Paul, SG, acoustic, bass). Keep it short."
           }
         });
-      };
-
-      dc.onclose = () => {
-        setPill("idle");
-      };
-
-      dc.onerror = () => {
-        setPill("error");
       };
 
       dc.onmessage = (e) => {
         try{
           const evt = JSON.parse(e.data);
+
+          if (evt.type === "input_audio_transcription.completed" && evt.text) {
+            if (window.__gipson_addLine) window.__gipson_addLine("You", evt.text);
+          }
 
           if (evt.type === "response.output_text.delta" && typeof evt.delta === "string") {
             currentText += evt.delta;
@@ -441,16 +468,12 @@
             const txt = (evt.text || currentText || "").trim();
             currentText = "";
             if (txt) {
-              addLine("ai", txt);
+              if (window.__gipson_addLine) window.__gipson_addLine("Gibson", txt);
               const q = extractShowQuery(txt);
               if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
             }
           }
-
-          if (evt.type === "input_audio_transcription.completed" && evt.text) {
-            addLine("me", evt.text);
-          }
-        } catch(err){}
+        } catch {}
       };
 
       const offer = await pc.createOffer();
@@ -476,21 +499,17 @@
 
     micBtn.addEventListener("click", async () => {
       if (pc) return stopVoice();
-      try {
-        await startVoice();
-      } catch (e) {
-        console.error(e);
-        setPill("error");
-        stopVoice();
-      }
+      try { await startVoice(); }
+      catch (e){ console.error(e); setPill("error"); stopVoice(); }
     });
 
-    // ---------------- Text input (fallback) ----------------
+    // ---------------- Text fallback ----------------
     async function handleSend(){
       const txt = textIn.value.trim();
       if (!txt) return;
       textIn.value = "";
-      addLine("me", txt);
+
+      if (window.__gipson_addLine) window.__gipson_addLine("You", txt);
 
       const q = extractShowQuery(txt);
       if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
@@ -498,27 +517,20 @@
       if (dc && dc.readyState === "open") {
         sendEvent({
           type: "conversation.item.create",
-          item: {
-            type: "message",
-            role: "user",
-            content: [{ type: "input_text", text: txt }]
-          }
+          item: { type:"message", role:"user", content:[{type:"input_text", text: txt}] }
         });
-        sendEvent({ type: "response.create", response: { modalities: ["audio","text"] } });
+        sendEvent({ type:"response.create", response:{ modalities:["audio","text"] }});
       } else {
-        if (!q) addLine("ai", "Turn Voice On, or type: [[SHOW: Les Paul]]");
+        if (!q && window.__gipson_addLine) {
+          window.__gipson_addLine("Gibson", 'Turn Voice On, or type: [[SHOW: Les Paul]]');
+        }
       }
     }
 
     sendBtn.addEventListener("click", handleSend);
-    textIn.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") handleSend();
-    });
+    textIn.addEventListener("keydown", (e) => { if (e.key === "Enter") handleSend(); });
 
-    // Auto-load CSV on page load
-    if (window.__gipson_loadCatalog) window.__gipson_loadCatalog();
     setPill("idle");
-
   </script>
 </body>
 </html>
