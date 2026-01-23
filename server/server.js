@@ -1,3 +1,4 @@
+// server/server.js
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -11,13 +12,20 @@ const __dirname = path.dirname(__filename);
 
 // Serve /public
 const publicDir = path.join(__dirname, "..", "public");
-app.use(express.static(publicDir));
+app.use(express.static(publicDir, {
+  etag: true,
+  lastModified: true
+}));
 
 // Browser posts SDP as text
 app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 
+/**
+ * WebRTC Realtime session
+ * The client posts SDP offer, server returns SDP answer.
+ */
 app.post("/session", async (req, res) => {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -27,10 +35,15 @@ app.post("/session", async (req, res) => {
     const model = process.env.REALTIME_MODEL || "gpt-realtime";
     const voice = process.env.REALTIME_VOICE || "alloy";
 
+    // Safe defaults; the client will still send session.update with exact instructions.
     const sessionConfig = JSON.stringify({
       type: "realtime",
       model,
-      audio: { output: { voice } }
+      audio: { output: { voice } },
+      instructions:
+        "You are Gibson's friendly, no-pressure guitar salesperson. " +
+        "Answer in English. Keep answers short. " +
+        "If the user asks to show/list/browse guitars, include [[SHOW: <query>]] in your text."
     });
 
     const fd = new FormData();
