@@ -12,20 +12,13 @@ const __dirname = path.dirname(__filename);
 
 // Serve /public
 const publicDir = path.join(__dirname, "..", "public");
-app.use(express.static(publicDir, {
-  etag: true,
-  lastModified: true
-}));
+app.use(express.static(publicDir, { etag: true, lastModified: true }));
 
-// Browser posts SDP as text
+// Client posts SDP offer as raw text
 app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 
-/**
- * WebRTC Realtime session
- * The client posts SDP offer, server returns SDP answer.
- */
 app.post("/session", async (req, res) => {
   try {
     if (!process.env.OPENAI_API_KEY) {
@@ -35,15 +28,14 @@ app.post("/session", async (req, res) => {
     const model = process.env.REALTIME_MODEL || "gpt-realtime";
     const voice = process.env.REALTIME_VOICE || "alloy";
 
-    // Safe defaults; the client will still send session.update with exact instructions.
     const sessionConfig = JSON.stringify({
       type: "realtime",
       model,
       audio: { output: { voice } },
       instructions:
         "You are Gibson's friendly, no-pressure guitar salesperson. " +
-        "Answer in English. Keep answers short. " +
-        "If the user asks to show/list/browse guitars, include [[SHOW: <query>]] in your text."
+        "Always respond in English. Keep answers short. " +
+        "If the user asks to show/list/browse guitars, include [[SHOW: <query>]]."
     });
 
     const fd = new FormData();
@@ -58,7 +50,7 @@ app.post("/session", async (req, res) => {
 
     if (!r.ok) {
       const txt = await r.text();
-      console.error("OpenAI /realtime/calls error:", r.status, txt);
+      console.error("OpenAI realtime error:", r.status, txt);
       return res.status(500).send(txt);
     }
 
@@ -71,7 +63,6 @@ app.post("/session", async (req, res) => {
   }
 });
 
-// Fallback
 app.get("*", (req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
