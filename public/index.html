@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -44,128 +43,130 @@
       right: 18px;
       bottom: 18px;
       width: min(420px, calc(100vw - 36px));
-      background: rgba(255,255,255,.92);
-      border:1px solid var(--line);
-      box-shadow: var(--shadow);
-      border-radius: 20px;
-      overflow:hidden;
+      border:1px solid rgba(255,255,255,0.35);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.86);
       backdrop-filter: blur(10px);
-      z-index: 10;
+      box-shadow: var(--shadow);
+      overflow:hidden;
     }
 
-    .dockHeader{
+    .dockTop{
       display:flex;
       align-items:center;
       justify-content:space-between;
-      gap:12px;
-      padding:12px 14px;
+      padding: 12px 14px;
       border-bottom:1px solid var(--line);
-      background: linear-gradient(90deg, rgba(17,24,39,.92), rgba(17,24,39,.82));
-      color:#fff;
+      background: rgba(255,255,255,0.86);
     }
 
     .brand{
-      display:flex; align-items:center; gap:10px;
-      font-weight:700;
-      letter-spacing:.2px;
+      display:flex;
+      gap:10px;
+      align-items:center;
+      font-weight:900;
+      letter-spacing:0.3px;
     }
-
-    .tag{
-      font-size:11px;
-      padding:3px 8px;
+    .brand .dot{
+      width:10px; height:10px;
       border-radius:999px;
-      background: rgba(245,158,11,.18);
-      border:1px solid rgba(245,158,11,.35);
-      color:#fff;
+      background: var(--accent2);
+      box-shadow: 0 0 0 4px rgba(245,158,11,0.18);
+    }
+    .sub{
+      font-size:12px;
+      color: var(--muted);
+      margin-top:2px;
       font-weight:600;
     }
 
-    .row{ display:flex; gap:10px; align-items:center; }
-
-    .btn{
-      appearance:none;
-      border:1px solid rgba(255,255,255,.25);
-      background: rgba(255,255,255,.14);
-      color:#fff;
-      border-radius:999px;
-      padding:8px 10px;
-      cursor:pointer;
-      font-weight:700;
-      display:flex;
-      align-items:center;
-      gap:8px;
-    }
-    .btn:active{ transform: translateY(1px); }
-
-    .micDot{
-      width:10px; height:10px; border-radius:50%;
-      background: rgba(255,255,255,.7);
-    }
-    .micOn .micDot{ background: var(--accent2); box-shadow: 0 0 0 6px rgba(245,158,11,.20); }
-
-    .dockBody{ padding:12px 14px; }
-
-    .status{
+    .pill{
       font-size:12px;
-      color: var(--muted);
+      font-weight:800;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      color:#111827;
+      background:#fff;
+      white-space:nowrap;
+    }
+    .pill.ok{ border-color: rgba(22,163,74,.35); color: var(--ok); }
+    .pill.bad{ border-color: rgba(220,38,38,.35); color: var(--bad); }
+
+    .dockBody{ padding: 12px 14px 14px; }
+
+    .row{
       display:flex;
+      gap:10px;
       align-items:center;
       justify-content:space-between;
-      gap:10px;
       margin-bottom:10px;
     }
 
-    .pill{
-      font-size:11px;
-      padding:3px 8px;
-      border-radius:999px;
+    .micBtn{
+      appearance:none;
       border:1px solid var(--line);
       background:#fff;
-      color: var(--muted);
-      white-space:nowrap;
+      border-radius: 14px;
+      padding: 10px 12px;
+      cursor:pointer;
+      font-weight:900;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex: 1;
+      transition: transform .05s ease;
     }
-    .pill.ok{ color: var(--ok); border-color: rgba(22,163,74,.3); background: rgba(22,163,74,.06); }
-    .pill.bad{ color: var(--bad); border-color: rgba(220,38,38,.3); background: rgba(220,38,38,.06); }
+    .micBtn:active{ transform: translateY(1px); }
+    .micBtn .mic{
+      width:32px; height:32px;
+      border-radius:12px;
+      display:grid; place-items:center;
+      background: rgba(17,24,39,.06);
+    }
+    .micBtn.micOn .mic{ background: rgba(245,158,11,.18); }
+    .micBtn.micOn{ border-color: rgba(245,158,11,.45); }
 
     .log{
-      height: 120px;
-      overflow:auto;
       border:1px solid var(--line);
       border-radius: 14px;
-      padding:10px;
-      background: rgba(255,255,255,.86);
-      font-size:13px;
-      line-height:1.35;
+      background: #fff;
+      padding: 10px 12px;
+      height: 160px;
+      overflow:auto;
+      font-size: 13px;
+      line-height: 1.35;
+      color:#0b1220;
     }
     .log p{ margin:0 0 8px 0; }
-    .log .me{ color:#0f172a; font-weight:700; }
-    .log .ai{ color:#111827; }
+    .me{ font-weight:900; }
+    .ai{ font-weight:900; color:#111827; }
+    .aiText{ color:#0b1220; }
 
     .controls{
       display:flex;
       gap:10px;
       margin-top:10px;
     }
-    input[type="text"]{
-      flex:1;
-      padding:10px 12px;
-      border-radius: 12px;
+    #textIn{
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 14px;
       border:1px solid var(--line);
-      outline:none;
       background:#fff;
-      font-size:14px;
+      font-size: 13px;
+      outline:none;
     }
     .go{
-      border:0;
-      border-radius: 12px;
-      padding:10px 12px;
-      background: #111827;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border:1px solid var(--line);
+      background:#111827;
       color:#fff;
-      font-weight:800;
+      font-weight:900;
       cursor:pointer;
     }
 
-    /* Product cards panel */
     #products{
       display:none;
       margin-top:12px;
@@ -178,57 +179,74 @@
       display:grid;
       grid-template-columns: 1fr;
       gap:10px;
+      margin-top:10px;
     }
 
     .prodCard{
       display:grid;
-      grid-template-columns: 86px 1fr;
+      grid-template-columns: 84px 1fr;
       gap:10px;
-      padding:10px;
-      border-radius: 14px;
       border:1px solid var(--line);
       background:#fff;
+      border-radius: 14px;
+      padding:10px;
+      overflow:hidden;
     }
+
     .thumb{
-      width:86px; height:86px;
+      width:84px; height:84px;
       border-radius: 12px;
       border:1px solid var(--line);
       overflow:hidden;
-      display:flex; align-items:center; justify-content:center;
-      background: #f8fafc;
+      background: rgba(17,24,39,.04);
+      display:grid; place-items:center;
     }
     .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-    .prodCard h4{ margin:0 0 4px 0; font-size:14px; }
-    .meta{ margin:0; color:var(--muted); font-size:12px; }
-    .price{ margin-top:6px; font-weight:900; }
-    .meta a{ color:#2563eb; text-decoration:none; }
-    .meta a:hover{ text-decoration:underline; }
+
+    .prodCard h4{
+      margin:0 0 4px 0;
+      font-size: 13px;
+      line-height:1.2;
+    }
+    .meta{
+      margin:0;
+      font-size: 12px;
+      color: var(--muted);
+      line-height:1.25;
+    }
+    .price{
+      margin-top:6px;
+      font-weight:900;
+      font-size: 13px;
+    }
+    a{ color:#111827; font-weight:900; text-decoration:none; }
+    a:hover{ text-decoration:underline; }
   </style>
 </head>
-
 <body>
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- Bottom-right dock -->
-  <div class="dock" id="dock">
-    <div class="dockHeader">
-      <div class="brand">
-        <div>Gibson</div>
-        <div class="tag">Voice Sales Demo</div>
+  <div class="dock" role="dialog" aria-label="Gibson Voice Sales Demo">
+    <div class="dockTop">
+      <div>
+        <div class="brand">
+          <span class="dot"></span>
+          <div>
+            Gibson
+            <div class="sub">Try our new Guitar Specialist • Click to talk</div>
+          </div>
+        </div>
       </div>
-      <div class="row">
-        <button class="btn" id="micBtn" title="Start/Stop Voice">
-          <span class="micDot" id="micDot"></span>
-          <span id="micLabel">Voice Off</span>
-        </button>
-      </div>
+      <div class="pill" id="connPill">idle</div>
     </div>
 
     <div class="dockBody">
-      <div class="status">
-        <div>Tip: type <b>[[SHOW: les paul custom]]</b> or just “show les paul custom”.</div>
-        <div class="pill" id="connPill">idle</div>
+      <div class="row">
+        <button class="micBtn" id="micBtn">
+          <span class="mic">🎙️</span>
+          <span id="micLabel">Voice Off</span>
+        </button>
       </div>
 
       <div class="log" id="log"></div>
@@ -248,6 +266,7 @@
   <script src="/gipson.js"></script>
 
   <script>
+
     const logEl = document.getElementById("log");
     const textIn = document.getElementById("textIn");
     const sendBtn = document.getElementById("sendBtn");
@@ -271,18 +290,20 @@
     }
 
     function extractShowQuery(txt){
-      const m = txt.match(/\[\[\s*SHOW\s*:\s*([^\]]+)\]\]/i);
+      // Primary pattern: [[SHOW: query]]
+      const m = txt.match(/\[\[\s*SHOW\s*:\s([^\]]+)\]\]/i);
       if (m) return m[1].trim();
+
+      // Helpful fallback: "show les paul custom"
       const m2 = txt.match(/^\s*show\s+(.+)$/i);
       if (m2) return m2[1].trim();
+
+      // Another fallback: "list les paul"
+      const m3 = txt.match(/^\s*(list|browse)\s+(.+)$/i);
+      if (m3) return m3[2].trim();
+
       return null;
     }
-
-    // ---------------- Voice (WebRTC Realtime) ----------------
-    let pc = null;
-    let dc = null;
-    let localStream = null;
-    let audioEl = null;
 
     function setPill(state){
       connPill.className = "pill";
@@ -291,12 +312,72 @@
       if (state === "error") connPill.classList.add("bad");
     }
 
+    // ---------------- Voice (WebRTC Realtime) ----------------
+    let pc = null;
+    let dc = null;
+    let localStream = null;
+    let audioEl = null;
+    let starting = false;
+
+    function hardReset(){
+      try { if (dc) dc.close(); } catch {}
+      dc = null;
+
+      try{
+        if (pc) {
+          for (const s of pc.getSenders()) {
+            try{ if (s.track) s.track.stop(); } catch {}
+          }
+        }
+      } catch {}
+
+      try { if (pc) pc.close(); } catch {}
+      pc = null;
+
+      if (localStream) {
+        localStream.getTracks().forEach(t => { try{ t.stop(); } catch {} });
+      }
+      localStream = null;
+
+      if (audioEl) {
+        try { audioEl.srcObject = null; } catch {}
+        try { audioEl.remove(); } catch {}
+      }
+      audioEl = null;
+    }
+
+    function stopVoice(){
+      starting = false;
+      micBtn.classList.remove("micOn");
+      micLabel.textContent = "Voice Off";
+      setPill("idle");
+      hardReset();
+    }
+
+    function sendEvent(obj){
+      if (!dc || dc.readyState !== "open") return;
+      dc.send(JSON.stringify(obj));
+    }
+
     async function startVoice(){
+      if (starting || pc) return;
+      starting = true;
+
       setPill("connecting...");
       micBtn.classList.add("micOn");
       micLabel.textContent = "Voice On";
 
+      // Always start from a clean slate (fixes "second try" issues)
+      hardReset();
+
       pc = new RTCPeerConnection();
+
+      pc.onconnectionstatechange = () => {
+        const s = pc?.connectionState;
+        if (s === "failed" || s === "disconnected" || s === "closed") {
+          setPill("idle");
+        }
+      };
 
       audioEl = document.createElement("audio");
       audioEl.autoplay = true;
@@ -308,21 +389,28 @@
       pc.addTrack(localStream.getTracks()[0]);
 
       dc = pc.createDataChannel("oai-events");
+
+      let currentText = "";
+
       dc.onopen = () => {
         setPill("connected");
+        starting = false;
 
-        // PRE-SPANISH ORIGINAL (DO NOT CHANGE)
+        // Keep it strict so SHOW is reliable
         sendEvent({
           type: "session.update",
           session: {
             instructions:
-              "You are Gibson's friendly, no-pressure guitar salesperson. Ask 1-2 quick questions, then recommend options. " +
-              "Keep answers short. If the user mentions a model, help them compare. " +
-              "When user asks to 'show' something, respond with [[SHOW: <query>]]."
+              "You are Gibson's friendly, no-pressure guitar salesperson. " +
+              "Always respond in English. Keep answers short (1-3 sentences). " +
+              "If the user asks to show/list/browse/see guitars, you MUST include exactly one marker in your text: " +
+              "[[SHOW: <search query>]]. " +
+              "Example: 'Sure — here are a few Les Paul Customs. [[SHOW: Les Paul Custom]]' " +
+              "Do not omit the SHOW marker when the user is asking to see products."
           }
         });
 
-        // PRE-SPANISH ORIGINAL (DO NOT CHANGE)
+        // Initial greeting
         sendEvent({
           type: "response.create",
           response: {
@@ -333,14 +421,30 @@
         });
       };
 
+      dc.onclose = () => {
+        setPill("idle");
+      };
+
+      dc.onerror = () => {
+        setPill("error");
+      };
+
       dc.onmessage = (e) => {
         try{
           const evt = JSON.parse(e.data);
 
-          if (evt.type === "response.output_text.done" && evt.text) {
-            addLine("ai", evt.text);
-            const q = extractShowQuery(evt.text);
-            if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
+          if (evt.type === "response.output_text.delta" && typeof evt.delta === "string") {
+            currentText += evt.delta;
+          }
+
+          if (evt.type === "response.output_text.done") {
+            const txt = (evt.text || currentText || "").trim();
+            currentText = "";
+            if (txt) {
+              addLine("ai", txt);
+              const q = extractShowQuery(txt);
+              if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
+            }
           }
 
           if (evt.type === "input_audio_transcription.completed" && evt.text) {
@@ -370,33 +474,6 @@
       await pc.setRemoteDescription(answer);
     }
 
-    function sendEvent(obj){
-      if (!dc || dc.readyState !== "open") return;
-      dc.send(JSON.stringify(obj));
-    }
-
-    function stopVoice(){
-      micBtn.classList.remove("micOn");
-      micLabel.textContent = "Voice Off";
-      setPill("idle");
-
-      try { if (dc) dc.close(); } catch {}
-      dc = null;
-
-      try { if (pc) pc.close(); } catch {}
-      pc = null;
-
-      if (localStream) {
-        localStream.getTracks().forEach(t => { try{ t.stop(); } catch {} });
-      }
-      localStream = null;
-
-      if (audioEl) {
-        try { audioEl.srcObject = null; } catch {}
-      }
-      audioEl = null;
-    }
-
     micBtn.addEventListener("click", async () => {
       if (pc) return stopVoice();
       try {
@@ -408,7 +485,7 @@
       }
     });
 
-    // ---------------- Text input ----------------
+    // ---------------- Text input (fallback) ----------------
     async function handleSend(){
       const txt = textIn.value.trim();
       if (!txt) return;
@@ -427,12 +504,9 @@
             content: [{ type: "input_text", text: txt }]
           }
         });
-        sendEvent({
-          type: "response.create",
-          response: { modalities: ["audio","text"] }
-        });
+        sendEvent({ type: "response.create", response: { modalities: ["audio","text"] } });
       } else {
-        if (!q) addLine("ai", "Click Voice On.");
+        if (!q) addLine("ai", "Turn Voice On, or type: [[SHOW: Les Paul]]");
       }
     }
 
@@ -441,8 +515,10 @@
       if (e.key === "Enter") handleSend();
     });
 
+    // Auto-load CSV on page load
     if (window.__gipson_loadCatalog) window.__gipson_loadCatalog();
     setPill("idle");
+
   </script>
 </body>
 </html>
