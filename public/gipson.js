@@ -1,208 +1,174 @@
-const navTry = document.getElementById("navTry");
-const micBtn = document.getElementById("micBtn");
-const micState = document.getElementById("micState");
-const cardsEl = document.getElementById("cards");
-const logEl = document.getElementById("log");
+let catalog = null;
 
-function log(msg) {
-  const t = new Date().toLocaleTimeString();
-  logEl.textContent = `[${t}] ${msg}\n` + logEl.textContent;
+const productsWrap = document.getElementById("products");
+const grid = document.getElementById("prodGrid");
+
+function escapeHtml(s){
+  return String(s)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;");
 }
 
-/* ---------------- CSV parsing ---------------- */
+function normalizePrice(p){
+  const s = String(p || "").trim();
+  if (!s) return "";
+  const n = s.replace(/[$,]/g, "");
+  const num = Number(n);
+  if (Number.isFinite(num)) return num.toFixed(2);
+  return s;
+}
 
-function parseCSV(text) {
-  const rows = [];
-  let row = [];
-  let cur = "";
-  let inQ = false;
+function parseCSV(text){
+  const lines = text.replace(/\r/g,"").split("\n").filter(l => l.trim().length);
+  if (!lines.length) return [];
+  const header = split(lines[0]).map(h => h.trim());
+  const out = [];
 
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    const n = text[i + 1];
-
-    if (c === '"' && inQ && n === '"') { cur += '"'; i++; continue; }
-    if (c === '"') { inQ = !inQ; continue; }
-
-    if (!inQ && (c === "\n" || c === "\r")) {
-      if (cur.length || row.length) { row.push(cur); rows.push(row); }
-      row = []; cur = "";
-      continue;
+  for (let i=1;i<lines.length;i++){
+    const cols = split(lines[i]);
+    const row = {};
+    for (let j=0;j<header.length;j++){
+      row[header[j]] = (cols[j] ?? "").trim();
     }
-
-    if (!inQ && c === ",") { row.push(cur); cur = ""; continue; }
-
-    cur += c;
+    out.push(row);
   }
-  if (cur.length || row.length) { row.push(cur); rows.push(row); }
+  return out;
 
-  return rows.filter(r => r.some(v => String(v).trim().length));
-}
-
-function buildRowObject(headers, cols) {
-  const o = {};
-  headers.forEach((h, i) => (o[h] = (cols[i] ?? "").trim()));
-  return o;
-}
-
-function forceHttps(u) {
-  return u ? u.replace(/^http:\/\//i, "https://") : "";
-}
-
-function normKey(k) {
-  return String(k || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .replace(/[^\w\s-]/g, "");
-}
-
-function getAny(row, candidates) {
-  if (!row.__normMap) {
-    const m = new Map();
-    for (const [k, v] of Object.entries(row)) m.set(normKey(k), v);
-    row.__normMap = m;
+  function split(line){
+    const res = [];
+    let cur="", inQ=false;
+    for (let i=0;i<line.length;i++){
+      const ch=line[i];
+      if (ch === '"'){
+        if (inQ && line[i+1] === '"'){ cur+='"'; i++; }
+        else inQ = !inQ;
+      } else if (ch === "," && !inQ){
+        res.push(cur); cur="";
+      } else cur += ch;
+    }
+    res.push(cur);
+    return res;
   }
-
-  for (const c of candidates) {
-    const direct = row[c];
-    if (direct != null && String(direct).trim()) return String(direct).trim();
-
-    const viaNorm = row.__normMap.get(normKey(c));
-    if (viaNorm != null && String(viaNorm).trim()) return String(viaNorm).trim();
-  }
-  return "";
 }
 
-function normalizeRow(row) {
-  const title = getAny(row, ["full-unstyled-link", "title", "name"]);
-  const url   = getAny(row, ["full-unstyled-link href", "href", "url", "link"]);
-  const image = getAny(row, ["motion-reduce src", "img src", "image url", "image"]);
-  const price = getAny(row, ["price-item", "price"]);
-  const vendor = getAny(row, ["vendor-name", "vendor", "brand"]);
-  const sku = getAny(row, ["sku", "SKU", "data-sku"]);
-
-  return { title, url, image: forceHttps(image), price, vendor, sku };
+function urlSlug(url){
+  try{
+    const u = new URL(url);
+    const parts = u.pathname.split("/").filter(Boolean);
+    return parts[parts.length-1] || "";
+  } catch { return ""; }
 }
 
-let PRODUCTS = [];
+function normalizeRows(rows){
+  const get = (r, ...keys) => {
+    for (const k of keys){
+      if (k in r && String(r[k]).trim() !== "") return String(r[k]).trim();
+    }
+    return "";
+  };
 
-async function loadProducts() {
-  const url = `/data/gibson.csv?v=${Date.now()}`;
-  log(`Loading CSV: ${url}`);
+  return rows.map(r => {
+    const product_url = get(r, "full-unstyled-link href", "product-card-link");
+    const title = get(r, "full-unstyled-link");
+    const image_url = get(r, "motion-reduce src", "linked-product__image src");
+    const price = normalizePrice(get(r, "price-item"));
 
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`CSV fetch failed: ${r.status}`);
+    const sku = urlSlug(product_url) || title || "unknown-item";
+    const vendor = get(r, "vendor-name");
+    const flag1 = get(r, "product-flag");
+    const flag2 = get(r, "product-flag 2");
 
+    return {
+      title,
+      product_url,
+      image_url,
+      price,
+      sku,
+      desc: [vendor, flag1, flag2].filter(Boolean).join(" • ")
+    };
+  });
+}
+
+async function loadCatalog(){
+  if (catalog) return catalog;
+
+  const r = await fetch("/data/gibson.csv", { cache:"no-store" });
+  if (!r.ok) throw new Error(`CSV fetch failed: ${r.status} ${r.statusText}`);
   const text = await r.text();
-  const sniff = text.slice(0, 80).replace(/\s+/g, " ");
-  log(`CSV first chars: ${sniff}`);
-
-  if (text.trim().startsWith("<!doctype") || text.trim().startsWith("<html")) {
-    throw new Error("CSV response looks like HTML (wrong file/path/static config)");
-  }
-
   const rows = parseCSV(text);
-  if (!rows.length) throw new Error("CSV empty after parse");
-
-  const headers = rows[0].map(h => String(h).trim());
-  log(`CSV headers (${headers.length}): ${headers.slice(0, 8).join(" | ")} ...`);
-
-  const normalized = rows.slice(1)
-    .map(cols => buildRowObject(headers, cols))
-    .map(o => normalizeRow(o));
-
-  PRODUCTS = normalized.filter(p => p.title && p.title.trim());
-  log(`Rows parsed: ${normalized.length} | With title: ${PRODUCTS.length}`);
+  catalog = normalizeRows(rows);
+  return catalog;
 }
 
-function renderCards(list) {
-  cardsEl.innerHTML = "";
-  if (!list.length) {
-    cardsEl.innerHTML = `<div style="color:#5b6476;font-size:12px;">No matches.</div>`;
+// simple scoring search, returns top N
+function searchTop(items, query, n=3){
+  const q = query.toLowerCase().trim();
+  const tokens = q.split(/\s+/).filter(Boolean);
+
+  const scored = items.map(it => {
+    const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
+    let score = 0;
+    if (hay.includes(q)) score += 100;
+    for (const t of tokens) if (hay.includes(t)) score += 20;
+    return { it, score };
+  }).filter(x => x.score > 0)
+    .sort((a,b) => b.score - a.score)
+    .slice(0, n)
+    .map(x => x.it);
+
+  return scored;
+}
+
+function renderProducts(items, query){
+  grid.innerHTML = "";
+  if (!items.length){
+    productsWrap.classList.add("show");
+    grid.innerHTML = `<div style="font-size:12px; color:#64748b;">No matches for "${escapeHtml(query)}"</div>`;
     return;
   }
 
-  for (const p of list) {
+  for (const it of items){
+    const img = it.image_url
+      ? `<img src="${escapeHtml(it.image_url)}" alt="">`
+      : `<div style="font-size:11px;color:#64748b;">No image</div>`;
+
+    const link = it.product_url
+      ? `<a href="${escapeHtml(it.product_url)}" target="_blank" rel="noopener">Open</a>`
+      : "";
+
+    const price = it.price ? `$${it.price}` : "—";
+
     const card = document.createElement("div");
-    card.className = "card";
-
-    const img = document.createElement("img");
-    img.className = "cardImg";
-    img.alt = p.title || "Guitar";
-    img.loading = "lazy";
-    img.src = p.image || "";
-    img.onerror = () => { img.style.display = "none"; };
-
-    const body = document.createElement("div");
-    body.className = "cardBody";
-
-    const title = document.createElement("div");
-    title.className = "cardTitle";
-    title.textContent = p.title || "Unknown";
-
-    const meta = document.createElement("div");
-    meta.className = "cardMeta";
-    meta.innerHTML = `
-      ${p.price ? `<span><b>Price:</b> ${p.price}</span>` : ""}
-      ${p.vendor ? `<span><b>Vendor:</b> ${p.vendor}</span>` : ""}
-      ${p.sku ? `<span><b>SKU:</b> ${p.sku}</span>` : ""}
+    card.className = "prodCard";
+    card.innerHTML = `
+      <div class="thumb">${img}</div>
+      <div>
+        <h4>${escapeHtml(it.title || "(Untitled)")}</h4>
+        <p class="meta">SKU: ${escapeHtml(it.sku || "—")} ${link ? " • " + link : ""}</p>
+        <p class="meta">${escapeHtml(it.desc || "")}</p>
+        <div class="price">${escapeHtml(price)}</div>
+      </div>
     `;
-
-    const link = document.createElement("a");
-    link.className = "cardLink";
-    link.href = p.url || "#";
-    link.target = "_blank";
-    link.rel = "noopener";
-    link.textContent = p.url ? "View product" : "No link";
-
-    body.appendChild(title);
-    body.appendChild(meta);
-    body.appendChild(link);
-
-    card.appendChild(img);
-    card.appendChild(body);
-    cardsEl.appendChild(card);
+    grid.appendChild(card);
   }
+
+  productsWrap.classList.add("show");
 }
 
-function searchProducts(query) {
-  const q = String(query || "").toLowerCase().trim();
-  if (!q) return [];
+// Exposed hooks called by index.html voice stream
+window.__gipson_loadCatalog = async () => {
+  try { await loadCatalog(); }
+  catch(e){ console.error(e); }
+};
 
-  return PRODUCTS
-    .map(p => {
-      const hay = `${p.title} ${p.vendor} ${p.price}`.toLowerCase();
-      let score = 0;
-      if (hay.includes(q)) score += 12;
-      for (const part of q.split(/\s+/)) {
-        if (part.length > 2 && hay.includes(part)) score += 2;
-      }
-      return { p, score };
-    })
-    .filter(x => x.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map(x => x.p);
-}
-
-function showProducts(q) {
-  const hits = searchProducts(q);
-  log(`SHOW "${q}" => ${hits.length} hits`);
-  renderCards(hits);
-}
-
-window.showProducts = showProducts;
-
-// Clicking the nav text just scrolls you to the UI (doesn't hide/show anything)
-navTry?.addEventListener("click", (e) => {
-  e.preventDefault();
-  document.getElementById("micBtn")?.scrollIntoView({ behavior: "smooth", block: "start" });
-});
-
-/* ---------------- Voice (leave as-is for now if yours is working) ---------------- */
-
-// If your voice is already working, keep your existing voice code below this line.
-// If you want me to include the full voice section too, paste your current gipson.js
-// from "Voice" downward and I’ll return a single combined full file.
-log("Page loaded. Loading catalog...");
-loadProducts().catch(err => log(`CSV ERROR: ${err.message}`));
+window.__gipson_showProducts = async (query) => {
+  try{
+    const items = await loadCatalog();
+    const top = searchTop(items, query, 3);
+    renderProducts(top, query);
+  } catch(e){
+    console.error(e);
+  }
+};
