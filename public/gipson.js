@@ -1,7 +1,32 @@
+// public/gipson.js
+// Gibson catalog loader + search + card renderer (CSV -> cards)
+
 let catalog = null;
 
 const productsWrap = document.getElementById("products");
 const grid = document.getElementById("prodGrid");
+const logEl = document.getElementById("log");
+
+// Try these locations (keep your CSV at /public/data/gibson.csv for best results)
+const CSV_URLS = [
+  "/data/gibson.csv",
+  "/data/guitars.csv",
+  "/gibson.csv",
+  "/guitars.csv"
+];
+
+function log(msg){
+  try{
+    if (!logEl) return;
+    const p = document.createElement("p");
+    p.style.margin = "0 0 6px 0";
+    p.style.fontSize = "12px";
+    p.style.color = "#5b6476";
+    p.textContent = String(msg);
+    logEl.appendChild(p);
+    logEl.scrollTop = logEl.scrollHeight;
+  } catch {}
+}
 
 function escapeHtml(s){
   return String(s)
@@ -20,9 +45,17 @@ function normalizePrice(p){
   return s;
 }
 
+/**
+ * Minimal CSV parser that supports:
+ * - quoted fields with commas
+ * - escaped quotes ("")
+ *
+ * Note: This parser assumes each record is on a single line (no embedded newlines).
+ */
 function parseCSV(text){
   const lines = text.replace(/\r/g,"").split("\n").filter(l => l.trim().length);
-  if (!lines.length) return [];
+  if (!lines.length) return { header: [], rows: [] };
+
   const header = split(lines[0]).map(h => h.trim());
   const out = [];
 
@@ -34,7 +67,8 @@ function parseCSV(text){
     }
     out.push(row);
   }
-  return out;
+
+  return { header, rows: out };
 
   function split(line){
     const res = [];
@@ -70,15 +104,15 @@ function normalizeRows(rows){
   };
 
   return rows.map(r => {
-    const product_url = get(r, "full-unstyled-link href", "product-card-link");
-    const title = get(r, "full-unstyled-link");
-    const image_url = get(r, "motion-reduce src", "linked-product__image src");
-    const price = normalizePrice(get(r, "price-item"));
+    const product_url = get(r, "full-unstyled-link href", "product-card-link", "url", "product_url");
+    const title = get(r, "full-unstyled-link", "title", "name");
+    const image_url = get(r, "motion-reduce src", "linked-product__image src", "image_url", "image");
+    const price = normalizePrice(get(r, "price-item", "price"));
 
     const sku = urlSlug(product_url) || title || "unknown-item";
-    const vendor = get(r, "vendor-name");
-    const flag1 = get(r, "product-flag");
-    const flag2 = get(r, "product-flag 2");
+    const vendor = get(r, "vendor-name", "vendor");
+    const flag1 = get(r, "product-flag", "flag");
+    const flag2 = get(r, "product-flag 2", "flag2");
 
     return {
       title,
@@ -91,37 +125,68 @@ function normalizeRows(rows){
   });
 }
 
+async function fetchFirstWorkingCSV(){
+  // Cache-bust so Render/CDN doesn't trick you during rapid redeploys.
+  const bust = `v=${Date.now()}`;
+
+  let lastErr = null;
+  for (const url of CSV_URLS){
+    try{
+      const r = await fetch(`${url}?${bust}`, { cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
+      const text = await r.text();
+      if (!text || !text.trim()) throw new Error("Empty CSV");
+      return { url, text };
+    } catch (e){
+      lastErr = e;
+      log(`CSV not at ${url} (${String(e.message || e)})`);
+    }
+  }
+  throw lastErr || new Error("CSV fetch failed");
+}
+
 async function loadCatalog(){
   if (catalog) return catalog;
 
-  const r = await fetch("/data/gibson.csv", { cache:"no-store" });
-  if (!r.ok) throw new Error(`CSV fetch failed: ${r.status} ${r.statusText}`);
-  const text = await r.text();
-  const rows = parseCSV(text);
-  catalog = normalizeRows(rows);
+  log("Loading catalog…");
+  const { url, text } = await fetchFirstWorkingCSV();
+
+  const parsed = parseCSV(text);
+  log(`CSV loaded from: ${url}`);
+  log(`Rows parsed: ${parsed.rows.length} | With title: ${parsed.rows.filter(r => (r["full-unstyled-link"] || r["title"] || r["name"] || "").trim()).length}`);
+
+  if (parsed.header.length){
+    log(`Headers: ${parsed.header.slice(0, 12).join(" | ")}${parsed.header.length > 12 ? " | …" : ""}`);
+  }
+
+  catalog = normalizeRows(parsed.rows);
   return catalog;
 }
 
-// simple scoring search, returns top N
-function searchTop(items, query, n=3){
-  const q = query.toLowerCase().trim();
+// Simple scoring search, returns top N
+function searchTop(items, query, n=12){
+  const q = String(query || "").toLowerCase().trim();
+  if (!q) return items.slice(0, n);
+
   const tokens = q.split(/\s+/).filter(Boolean);
 
-  const scored = items.map(it => {
-    const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
-    let score = 0;
-    if (hay.includes(q)) score += 100;
-    for (const t of tokens) if (hay.includes(t)) score += 20;
-    return { it, score };
-  }).filter(x => x.score > 0)
+  return items
+    .map(it => {
+      const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
+      let score = 0;
+      if (hay.includes(q)) score += 100;
+      for (const t of tokens) if (hay.includes(t)) score += 20;
+      return { it, score };
+    })
+    .filter(x => x.score > 0)
     .sort((a,b) => b.score - a.score)
     .slice(0, n)
     .map(x => x.it);
-
-  return scored;
 }
 
 function renderProducts(items, query){
+  if (!grid || !productsWrap) return;
+
   grid.innerHTML = "";
   if (!items.length){
     productsWrap.classList.add("show");
@@ -146,7 +211,7 @@ function renderProducts(items, query){
       <div class="thumb">${img}</div>
       <div>
         <h4>${escapeHtml(it.title || "(Untitled)")}</h4>
-        <p class="meta">SKU: ${escapeHtml(it.sku || "—")} ${link ? " • " + link : ""}</p>
+        <p class="meta">SKU: ${escapeHtml(it.sku || "—")}${link ? " • " + link : ""}</p>
         <p class="meta">${escapeHtml(it.desc || "")}</p>
         <div class="price">${escapeHtml(price)}</div>
       </div>
@@ -160,15 +225,25 @@ function renderProducts(items, query){
 // Exposed hooks called by index.html voice stream
 window.__gipson_loadCatalog = async () => {
   try { await loadCatalog(); }
-  catch(e){ console.error(e); }
+  catch(e){
+    console.error(e);
+    log(`Catalog error: ${String(e.message || e)}`);
+  }
 };
 
 window.__gipson_showProducts = async (query) => {
   try{
     const items = await loadCatalog();
-    const top = searchTop(items, query, 3);
-    renderProducts(top, query);
+    const top = searchTop(items, query, 12);
+    renderProducts(top, query || "");
   } catch(e){
     console.error(e);
+    log(`Show error: ${String(e.message || e)}`);
   }
+};
+
+// Handy for debugging in the browser console
+window.__gipson_debugCatalog = async () => {
+  const items = await loadCatalog();
+  return { count: items.length, sample: items.slice(0,5) };
 };
