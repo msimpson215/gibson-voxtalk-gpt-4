@@ -7,23 +7,25 @@
 
   <style>
     :root{
-      --ink:#0b1220;
-      --muted:#5b6476;
-      --line:rgba(255,255,255,.28);
-      --panelLine:rgba(255,255,255,.22);
+      /* Place the nav item just LEFT of “Garage” using one knob.
+         Increase = moves LEFT (more space), Decrease = moves RIGHT (closer to Garage). */
+      --right-offset: 360px;  /* <- tweak this */
+
+      --nav-top: 10px;
+
+      --ink:#111111;
+      --muted:rgba(17,17,17,.72);
+
       --shadow: 0 14px 40px rgba(0,0,0,.14);
-      --radius:16px;
-      --gold:#d4a23a; /* warmer Gibson-ish accent */
-      --ok:#16a34a;
-      --bad:#dc2626;
+      --gold:#d4a23a;
       --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
+
     *{ box-sizing:border-box; }
     html,body{ height:100%; }
     body{
       margin:0;
       font-family:var(--font);
-      color:#fff;
       overflow:hidden;
       background:#111;
     }
@@ -32,59 +34,60 @@
     .bg{
       position:fixed; inset:0;
       background:url("/assets/gibson-bg.png") center/cover no-repeat;
-      transform: translateZ(0);
     }
     .scrim{
       position:fixed; inset:0;
-      background: rgba(0,0,0,.12); /* very light — keeps background “alive” */
+      background: rgba(0,0,0,.06);
       pointer-events:none;
     }
 
-    /* --- “Nav tab” style button (integrated) --- */
+    /* --- Header-native nav item (black, matches Garage row) --- */
     .navWrap{
       position:fixed;
-      top: 14px;
-      right: 16px;
-      z-index: 50;
+      top: var(--nav-top);
+      right: var(--right-offset);
+      z-index: 60;
       display:flex;
-      gap: 14px;
       align-items:center;
     }
 
-    /* This is intentionally “website tab” style: no bubble, no shadow, inherits font */
     .navTab{
       appearance:none;
-      border: none;
-      background: transparent;
-      color: rgba(255,255,255,.92);
+      border:none;
+      background:transparent;
+      color: var(--ink);
       font: inherit;
-      font-weight: 700;
-      letter-spacing: .2px;
+
+      /* Gibson header vibe: black, bold, clean */
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: 0;
       padding: 8px 10px;
       cursor:pointer;
+      line-height: 1;
+
       display:flex;
       align-items:center;
-      gap: 8px;
+      gap: 10px;
+
       border-radius: 10px;
-      line-height: 1;
-      text-transform: none;
+
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
     }
-    .navTab:hover{
-      background: rgba(255,255,255,.06);
-    }
-    .navTab:active{
-      transform: translateY(1px);
-    }
+    .navTab:hover{ background: rgba(0,0,0,.04); }
+    .navTab:active{ transform: translateY(1px); }
+
     .navDot{
-      width:8px; height:8px; border-radius:999px;
+      width:7px; height:7px;
+      border-radius:999px;
       background: var(--gold);
       box-shadow: 0 0 0 4px rgba(212,162,58,.15);
     }
     .navSub{
-      font-weight: 600;
-      opacity: .84;
-      font-size: 12px;
-      margin-left: 8px;
+      font-weight: 700;
+      color: var(--muted);
+      font-size: 13px;
       white-space:nowrap;
     }
 
@@ -94,56 +97,60 @@
       left:50%;
       top:50%;
       transform: translate(-50%,-50%);
-      z-index: 60;
-      width: 108px;
-      height: 108px;
+      z-index: 65;
+
+      width: 136px;   /* bigger */
+      height: 136px;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.25);
-      background: rgba(10,10,10,.28);
+      border: 1px solid rgba(255,255,255,.20);
+      background: rgba(10,10,10,.18);
       backdrop-filter: blur(10px);
       box-shadow: var(--shadow);
+
       display:none;
       cursor:pointer;
       user-select:none;
       overflow:hidden;
     }
     .micBubble.show{ display:grid; place-items:center; }
-
     .micBubble.on{
       border-color: rgba(212,162,58,.55);
       box-shadow: 0 18px 60px rgba(0,0,0,.25);
     }
 
     .micImg{
-      width: 74px;
-      height: 74px;
+      width: 92px;
+      height: 92px;
       object-fit: contain;
       display:block;
       filter: drop-shadow(0 10px 14px rgba(0,0,0,.28));
     }
     .micFallback{
-      font-size: 34px;
+      font-size: 42px;
       opacity: .92;
+      color:#fff;
     }
 
-    /* --- Cards panel (left/below mic) --- */
+    /* --- Cards panel: always centered under mic --- */
     .cardsPanel{
       position:fixed;
       left:50%;
       top:50%;
-      transform: translate(calc(-50% - 190px), calc(-50% + 90px));
-      z-index: 55;
-      width: min(520px, calc(100vw - 24px));
-      max-height: min(380px, calc(100vh - 160px));
+      transform: translate(-50%, 106px);
+      z-index: 64;
+
+      width: min(640px, calc(100vw - 24px));
+      max-height: min(460px, calc(100vh - 230px));
       overflow:auto;
 
       border-radius: 18px;
       border:1px solid rgba(255,255,255,.18);
-      background: rgba(10,10,10,.30);
+      background: rgba(10,10,10,.26);
       backdrop-filter: blur(10px);
       box-shadow: var(--shadow);
       display:none;
       padding: 12px;
+      color:#fff;
     }
     .cardsPanel.show{ display:block; }
 
@@ -159,6 +166,10 @@
       letter-spacing: .2px;
       font-size: 13px;
       opacity: .95;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 72%;
     }
     .cardsActions{
       display:flex;
@@ -189,7 +200,7 @@
 
     .prodCard{
       display:grid;
-      grid-template-columns: 86px 1fr;
+      grid-template-columns: 92px 1fr;
       gap: 10px;
       padding: 10px;
       border-radius: 16px;
@@ -198,7 +209,7 @@
     }
 
     .thumb{
-      width:86px; height:86px;
+      width:92px; height:92px;
       border-radius: 14px;
       overflow:hidden;
       border:1px solid rgba(255,255,255,.14);
@@ -255,70 +266,6 @@
     }
     .linkBtn:hover{ background: rgba(255,255,255,.10); }
     .linkBtn:active{ transform: translateY(1px); }
-
-    /* Log panel (minimal, optional) */
-    .logPanel{
-      position:fixed;
-      left:16px;
-      bottom:16px;
-      z-index: 40;
-      width: min(420px, calc(100vw - 32px));
-      border-radius: 16px;
-      border:1px solid rgba(255,255,255,.16);
-      background: rgba(0,0,0,.22);
-      backdrop-filter: blur(10px);
-      box-shadow: var(--shadow);
-      padding: 10px 12px;
-      display:none;
-    }
-    .logPanel.show{ display:block; }
-    .log{
-      max-height: 140px;
-      overflow:auto;
-      font-size: 12px;
-      line-height: 1.35;
-      opacity: .92;
-    }
-    .log p{ margin:0 0 6px 0; }
-    .who{ font-weight: 900; }
-    .muted{ opacity: .78; font-weight: 700; }
-
-    /* Tiny text input (fallback) */
-    .textRow{
-      display:flex;
-      gap:10px;
-      margin-top: 8px;
-    }
-    #textIn{
-      flex: 1;
-      padding: 9px 10px;
-      border-radius: 12px;
-      border:1px solid rgba(255,255,255,.18);
-      background: rgba(255,255,255,.06);
-      color: rgba(255,255,255,.94);
-      outline:none;
-      font: inherit;
-      font-size: 12px;
-    }
-    #sendBtn{
-      padding: 9px 12px;
-      border-radius: 12px;
-      border:1px solid rgba(255,255,255,.18);
-      background: rgba(255,255,255,.10);
-      color:#fff;
-      font: inherit;
-      font-weight: 900;
-      font-size: 12px;
-      cursor:pointer;
-    }
-    #sendBtn:hover{ background: rgba(255,255,255,.14); }
-    #sendBtn:active{ transform: translateY(1px); }
-
-    @media (max-width: 760px){
-      .cardsPanel{
-        transform: translate(-50%, calc(-50% + 120px));
-      }
-    }
   </style>
 </head>
 
@@ -326,7 +273,7 @@
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- Top integrated “tab” -->
+  <!-- Header-native nav item -->
   <div class="navWrap">
     <button class="navTab" id="navTab" aria-label="Try our new AI Gibson Specialist">
       <span class="navDot"></span>
@@ -337,29 +284,21 @@
 
   <!-- Center mic bubble -->
   <div class="micBubble" id="micBubble" title="Click to talk">
-    <img class="micImg" id="micImg" src="/assets/mic.png" alt="Gibson mic" onerror="this.style.display='none'; document.getElementById('micFallback').style.display='block';">
+    <img class="micImg" id="micImg" src="/assets/mic.png" alt="Gibson mic"
+      onerror="this.style.display='none'; document.getElementById('micFallback').style.display='block';">
     <div class="micFallback" id="micFallback" style="display:none;">🎙️</div>
   </div>
 
-  <!-- Cards panel -->
+  <!-- Cards -->
   <div class="cardsPanel" id="cardsPanel" aria-label="Product results">
     <div class="cardsTop">
       <div class="cardsTitle" id="cardsTitle">Matches</div>
       <div class="cardsActions">
-        <button class="smallBtn" id="moreBtn">More like these</button>
+        <button class="smallBtn" id="moreBtn">More</button>
         <button class="smallBtn" id="hideBtn">Hide</button>
       </div>
     </div>
     <div id="prodGrid"></div>
-  </div>
-
-  <!-- Minimal log + text fallback (hidden by default) -->
-  <div class="logPanel" id="logPanel">
-    <div class="log" id="log"></div>
-    <div class="textRow">
-      <input id="textIn" type="text" placeholder='Type: show Les Paul Custom black' />
-      <button id="sendBtn">Send</button>
-    </div>
   </div>
 
   <script src="/gipson.js"></script>
@@ -368,16 +307,9 @@
     const navTab = document.getElementById("navTab");
     const micBubble = document.getElementById("micBubble");
     const cardsPanel = document.getElementById("cardsPanel");
-    const hideBtn = document.getElementById("hideBtn");
-    const moreBtn = document.getElementById("moreBtn");
     const cardsTitle = document.getElementById("cardsTitle");
-    const logPanel = document.getElementById("logPanel");
-    const textIn = document.getElementById("textIn");
-    const sendBtn = document.getElementById("sendBtn");
-
-    // If you ever want to see logs, flip this to true:
-    const SHOW_LOG_PANEL = false;
-    if (SHOW_LOG_PANEL) logPanel.classList.add("show");
+    const moreBtn = document.getElementById("moreBtn");
+    const hideBtn = document.getElementById("hideBtn");
 
     function looksLikeProductRequest(s){
       const t = String(s||"").toLowerCase();
@@ -387,34 +319,26 @@
         t.includes("bring up") ||
         t.includes("list") ||
         t.includes("browse") ||
-        t.includes("les paul") ||
+        t.includes("picture") ||
+        t.includes("photo") ||
         t.includes("sg") ||
+        t.includes("les paul") ||
         t.includes("custom") ||
         t.includes("reissue") ||
         t.includes("standard")
       );
     }
 
-    function extractQueryFromUserSpeech(s){
-      // Keep it simple: pass the speech as the query
-      // (works great with the scoring search in gipson.js)
-      return String(s||"").trim();
-    }
-
-    // UI: tab toggles mic bubble
     navTab.addEventListener("click", () => {
       micBubble.classList.toggle("show");
-      if (micBubble.classList.contains("show") && window.__gipson_loadCatalog) {
-        window.__gipson_loadCatalog();
+      if (micBubble.classList.contains("show")) {
+        window.__gipson_loadCatalog?.();
       }
     });
 
-    // Cards panel controls
-    hideBtn.addEventListener("click", () => {
-      cardsPanel.classList.remove("show");
-    });
+    hideBtn.addEventListener("click", () => cardsPanel.classList.remove("show"));
     moreBtn.addEventListener("click", () => {
-      if (window.__gipson_moreResults) window.__gipson_moreResults();
+      window.__gipson_moreResults?.();
       cardsPanel.classList.add("show");
     });
 
@@ -465,7 +389,6 @@
       hardReset();
 
       pc = new RTCPeerConnection();
-
       audioEl = document.createElement("audio");
       audioEl.autoplay = true;
       pc.ontrack = (e)=>{ audioEl.srcObject = e.streams[0]; };
@@ -480,13 +403,12 @@
       dc.onopen = () => {
         starting=false;
 
-        // Strict hinting helps, but we won't depend on it for cards
         sendEvent({
           type:"session.update",
           session:{
             instructions:
               "You are Gibson's friendly, no-pressure guitar salesperson. Always respond in English. " +
-              "Keep answers short. If user wants to see products, include exactly one [[SHOW: query]] marker."
+              "Keep answers short. If user asks to show/list/browse products, include exactly one [[SHOW: <query>]] marker."
           }
         });
 
@@ -503,31 +425,30 @@
         try{
           const evt = JSON.parse(e.data);
 
-          // 1) USER TRANSCRIPT — trigger cards from what YOU say (reliable)
+          // ✅ Trigger cards from YOUR transcript
           if(evt.type==="input_audio_transcription.completed" && evt.text){
             const userText = evt.text;
-            if(window.__gipson_addLine) window.__gipson_addLine("You", userText);
 
             if(looksLikeProductRequest(userText)){
-              const q = extractQueryFromUserSpeech(userText);
-              if(window.__gipson_showProducts) window.__gipson_showProducts(q);
-              cardsTitle.textContent = "Matches";
+              cardsTitle.textContent = `Showing: ${userText}`;
+              window.__gipson_showProducts?.(userText);
               cardsPanel.classList.add("show");
             }
           }
 
-          // 2) ASSISTANT TEXT — still parse SHOW if present (bonus)
+          // Bonus: parse SHOW marker if assistant includes it
           if(evt.type==="response.output_text.delta" && typeof evt.delta==="string"){
             currentText += evt.delta;
           }
           if(evt.type==="response.output_text.done"){
             const txt = (evt.text || currentText || "").trim();
-            currentText="";
-            if(txt && window.__gipson_addLine) window.__gipson_addLine("Gibson", txt);
+            currentText = "";
 
             const m = txt.match(/\[\[\s*SHOW\s*:\s([^\]]+)\]\]/i);
-            if(m && m[1] && window.__gipson_showProducts){
-              window.__gipson_showProducts(m[1].trim());
+            if(m && m[1]){
+              const q = m[1].trim();
+              cardsTitle.textContent = `Showing: ${q}`;
+              window.__gipson_showProducts?.(q);
               cardsPanel.classList.add("show");
             }
           }
@@ -553,32 +474,13 @@
       await pc.setRemoteDescription(answer);
     }
 
-    // Clicking mic bubble toggles voice
     micBubble.addEventListener("click", async () => {
       if(pc) return stopVoice();
       try { await startVoice(); }
       catch(e){ console.error(e); stopVoice(); }
     });
 
-    // Text fallback (optional)
-    async function handleSend(){
-      const txt = textIn.value.trim();
-      if(!txt) return;
-      textIn.value="";
-
-      if(window.__gipson_addLine) window.__gipson_addLine("You", txt);
-
-      if(looksLikeProductRequest(txt)){
-        const q = extractQueryFromUserSpeech(txt);
-        if(window.__gipson_showProducts) window.__gipson_showProducts(q);
-        cardsPanel.classList.add("show");
-      }
-    }
-    sendBtn.addEventListener("click", handleSend);
-    textIn.addEventListener("keydown", (e)=>{ if(e.key==="Enter") handleSend(); });
-
-    // Preload catalog quietly
-    if(window.__gipson_loadCatalog) window.__gipson_loadCatalog();
+    window.__gipson_loadCatalog?.();
   </script>
 </body>
 </html>
