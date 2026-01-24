@@ -4,15 +4,297 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Gibson Voice Demo</title>
-  <link rel="stylesheet" href="/styles.css" />
+
+  <style>
+    :root{
+      /* ---------- NAV TAB PLACEMENT (tweak these) ---------- */
+      --tab-right: 360px; /* bigger = moves LEFT, smaller = moves RIGHT */
+      --tab-top: 14px;    /* bigger = moves DOWN */
+
+      /* ---------- NAV TAB TYPO (match “Garage” vibe) ---------- */
+      --tab-main-size: 22px;
+      --tab-main-weight: 800;
+      --tab-sub-size: 14px;
+
+      /* ---------- COLORS ---------- */
+      --ink:#111;
+      --muted: rgba(17,17,17,.72);
+      --green:#2b7a2b;
+      --gold:#d4a23a;
+
+      /* ---------- MIC CIRCLE ---------- */
+      --mic-size: 132px; /* circle size */
+      --mic-img: 70px;   /* icon size inside */
+
+      /* ---------- PANEL ---------- */
+      --shadow: 0 14px 40px rgba(0,0,0,.14);
+      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+
+    body{
+      margin:0;
+      font-family:var(--font);
+      overflow:hidden;
+      background:#111;
+    }
+
+    /* Background image */
+    .bg{
+      position:fixed; inset:0;
+      background:url("/assets/gibson-bg.png") center/cover no-repeat;
+      transform: translateZ(0);
+    }
+    /* Light scrim so it stays bright like your screenshot */
+    .scrim{
+      position:fixed; inset:0;
+      background: rgba(255,255,255,0.06);
+      pointer-events:none;
+    }
+
+    /* Top “inserted tab” */
+    .navWrap{
+      position:fixed;
+      top: var(--tab-top);
+      right: var(--tab-right);
+      z-index: 60;
+      display:flex;
+      align-items:center;
+    }
+    .navTab{
+      appearance:none;
+      border:none;
+      background:transparent;
+      color: var(--ink);
+      font: inherit;
+      padding: 6px 8px;
+      cursor:pointer;
+      line-height: 1;
+      display:flex;
+      align-items:baseline;
+      gap: 10px;
+      border-radius: 10px;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+    .navTab:hover{ background: rgba(0,0,0,.04); }
+    .navTab:active{ transform: translateY(1px); }
+
+    .navDot{
+      width:7px; height:7px;
+      border-radius:999px;
+      background: var(--gold);
+      box-shadow: 0 0 0 3px rgba(212,162,58,.12);
+      transform: translateY(-2px);
+      flex: 0 0 auto;
+    }
+    .navMain{
+      font-weight: var(--tab-main-weight);
+      font-size: var(--tab-main-size);
+      white-space:nowrap;
+    }
+    .navSub{
+      font-weight: 800;
+      font-size: var(--tab-sub-size);
+      white-space:nowrap;
+      color: var(--green);
+      transform: translateY(-1px);
+    }
+
+    /* Mic circle */
+    .micBubble{
+      position:fixed;
+      left:50%;
+      top:50%;
+      transform: translate(-50%,-50%);
+      z-index: 65;
+
+      width: var(--mic-size);
+      height: var(--mic-size);
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.20);
+      background: rgba(10,10,10,.18);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+
+      display:none;
+      cursor:pointer;
+      user-select:none;
+      overflow:hidden;
+      padding:0;
+    }
+    .micBubble.show{ display:grid; place-items:center; }
+    .micBubble.on{
+      border-color: rgba(212,162,58,.55);
+      box-shadow: 0 18px 60px rgba(0,0,0,.25);
+    }
+
+    .micImg{
+      width: var(--mic-img);
+      height: var(--mic-img);
+      object-fit: contain;
+      display:block;
+      filter: drop-shadow(0 10px 14px rgba(0,0,0,.28));
+    }
+    .micFallback{
+      display:none;
+      place-items:center;
+      font-size: 44px;
+      opacity: .92;
+      color:#fff;
+    }
+
+    /* Product panel */
+    .cardsPanel{
+      position:fixed;
+      left:50%;
+      top:50%;
+      transform: translate(-50%, 118px);
+      z-index: 64;
+
+      width: min(720px, calc(100vw - 24px));
+      max-height: min(520px, calc(100vh - 240px));
+      overflow:auto;
+
+      border-radius: 18px;
+      border:1px solid rgba(255,255,255,.18);
+      background: rgba(10,10,10,.26);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow);
+      display:none;
+      padding: 12px;
+      color:#fff;
+    }
+    .cardsPanel.show{ display:block; }
+
+    .cardsTop{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .cardsTitle{
+      font-weight: 900;
+      font-size: 13px;
+      opacity: .95;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 72%;
+    }
+    .cardsActions{
+      display:flex;
+      gap: 8px;
+      align-items:center;
+    }
+    .smallBtn{
+      appearance:none;
+      border: 1px solid rgba(255,255,255,.20);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.92);
+      border-radius: 999px;
+      padding: 8px 10px;
+      cursor:pointer;
+      font: inherit;
+      font-weight: 800;
+      font-size: 12px;
+      white-space:nowrap;
+    }
+    .smallBtn:hover{ background: rgba(255,255,255,.10); }
+
+    #prodGrid{
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    /* Product cards */
+    .prodCard{
+      display:grid;
+      grid-template-columns: 92px 1fr;
+      gap: 10px;
+      align-items: start;
+
+      border: 1px solid rgba(255,255,255,.14);
+      border-radius: 16px;
+      padding: 10px;
+      background: rgba(0,0,0,.18);
+    }
+    .thumb{
+      width: 92px;
+      height: 92px;
+      border-radius: 12px;
+      overflow:hidden;
+      background: rgba(255,255,255,.06);
+      display:grid;
+      place-items:center;
+    }
+    .thumb img{ width:100%; height:100%; object-fit: cover; }
+
+    .prodCard h4{
+      margin: 0 0 6px 0;
+      font-size: 14px;
+      font-weight: 900;
+    }
+    .meta{
+      margin:0 0 8px 0;
+      font-size: 12px;
+      opacity: .82;
+    }
+    .priceRow{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap: 10px;
+    }
+    .price{ font-weight: 900; font-size: 14px; }
+    .cardBtns{ display:flex; gap: 8px; align-items:center; }
+
+    .linkBtn{
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(255,255,255,.06);
+      color: rgba(255,255,255,.92);
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 12px;
+      font-weight: 900;
+      text-decoration:none;
+      cursor:pointer;
+    }
+    .linkBtn:hover{ background: rgba(255,255,255,.10); }
+
+    /* Debug strip (helps verify transcript arrives) */
+    .dbg{
+      position: fixed;
+      left: 14px;
+      bottom: 12px;
+      z-index: 80;
+      font-size: 12px;
+      opacity: .78;
+      color: #fff;
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.15);
+      padding: 8px 10px;
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      max-width: min(560px, calc(100vw - 28px));
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      display:none;
+    }
+    .dbg.show{ display:block; }
+  </style>
 </head>
 
 <body>
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- “Inserted tab” in the same row vibe -->
-  <div class="navWrap" aria-label="AI nav tab">
+  <div class="navWrap">
     <button class="navTab" id="navTab" type="button" aria-label="Try our new AI Gibson Specialist">
       <span class="navDot" aria-hidden="true"></span>
       <span class="navMain">Gibson Specialist</span>
@@ -20,14 +302,12 @@
     </button>
   </div>
 
-  <!-- mic circle -->
   <button class="micBubble" id="micBubble" type="button" title="Click to talk" aria-label="Click to talk">
     <img class="micImg" id="micImg" src="/assets/mic.png" alt=""
       onerror="this.style.display='none'; document.getElementById('micFallback').style.display='grid';">
     <span class="micFallback" id="micFallback" aria-hidden="true">🎙️</span>
   </button>
 
-  <!-- products -->
   <section class="cardsPanel" id="cardsPanel" aria-label="Product results">
     <header class="cardsTop">
       <div class="cardsTitle" id="cardsTitle">Matches</div>
@@ -39,10 +319,10 @@
     <div id="prodGrid"></div>
   </section>
 
-  <!-- tiny debug (helps prove transcript is arriving) -->
   <div class="dbg" id="dbg"></div>
 
   <script src="/gipson.js"></script>
+
   <script>
     const navTab = document.getElementById("navTab");
     const micBubble = document.getElementById("micBubble");
@@ -85,6 +365,7 @@
     function hardReset(){
       try{ if(dc) dc.close(); }catch{}
       dc=null;
+
       try{
         if(pc){
           for(const s of pc.getSenders()){
@@ -121,6 +402,7 @@
     async function startVoice(){
       if(starting || pc) return;
       starting=true;
+
       micBubble.classList.add("on");
       hardReset();
 
@@ -137,21 +419,24 @@
       dc.onopen = () => {
         starting=false;
 
-        // Enable transcription (this is OFF by default unless you set it)
-        // Docs: input_audio_transcription configured via session.update. :contentReference[oaicite:1]{index=1}
+        // IMPORTANT: enable transcription (otherwise you often get voice but no text events)
         sendEvent({
           type:"session.update",
           session:{
             input_audio_transcription: { model: "whisper-1" },
             instructions:
               "You are Gibson's friendly, no-pressure guitar specialist. Always respond in English. " +
-              "Keep answers short. Never claim the UI is showing something unless the user confirms they see it."
+              "Keep answers short. If the user asks to SHOW a guitar, respond with: [[SHOW: <search phrase>]]. " +
+              "Do not claim the page is showing results unless the user confirms they see them."
           }
         });
 
         sendEvent({
           type:"response.create",
-          response:{ modalities:["audio","text"], instructions:"Quick greeting. Ask what guitar they want." }
+          response:{
+            modalities:["audio","text"],
+            instructions:"Quick greeting. Ask what guitar they want."
+          }
         });
       };
 
@@ -159,19 +444,9 @@
         try{
           const evt = JSON.parse(e.data);
 
-          // ✅ Correct transcription event + field:
-          // conversation.item.input_audio_transcription.completed has `transcript` :contentReference[oaicite:2]{index=2}
+          // ✅ This is the big fix: correct event name + correct field
           if (evt.type === "conversation.item.input_audio_transcription.completed" && evt.transcript) {
             triggerProducts(evt.transcript, "you");
-          }
-
-          // Also accept delta/segment forms (some models emit these) :contentReference[oaicite:3]{index=3}
-          if (evt.type === "conversation.item.input_audio_transcription.delta" && evt.transcript) {
-            // whisper-1 often sends full turns even in delta; safe to trigger
-            triggerProducts(evt.transcript, "you");
-          }
-          if (evt.type === "conversation.item.input_audio_transcription.segment" && evt.text) {
-            triggerProducts(evt.text, "you");
           }
 
           // Optional: if assistant outputs [[SHOW: ...]] in text
@@ -207,7 +482,7 @@
       catch(e){ console.error(e); stopVoice(); }
     });
 
-    // preload catalog so “blank page” never happens
+    // preload catalog so the product system is always ready
     window.__gipson_loadCatalog?.();
   </script>
 </body>
