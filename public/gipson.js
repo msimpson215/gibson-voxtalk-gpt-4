@@ -1,13 +1,15 @@
 // public/gipson.js
-// CSV catalog loader + search + cards + paging
+// Catalog loader + search + card renderer
 // Scoped to avoid global collisions.
 
 (() => {
   let catalog = null;
+
+  // paging state for "More like these"
   let lastQuery = "";
-  let lastResults = [];
-  let pageSize = 6;   // cards per page (minimal, quick)
-  let pageIndex = 0;  // paging cursor
+  let lastMatches = [];
+  let lastOffset = 0;
+  const PAGE_SIZE = 6;
 
   const CSV_URLS = [
     "/data/gibson.csv",
@@ -17,6 +19,23 @@
   ];
 
   function $(id){ return document.getElementById(id); }
+
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;");
+  }
+
+  function addLine(who, msg){
+    const log = $("log");
+    if (!log) return;
+    const p = document.createElement("p");
+    p.innerHTML = `<span class="who">${escapeHtml(who)}:</span> ${escapeHtml(String(msg))}`;
+    log.appendChild(p);
+    log.scrollTop = log.scrollHeight;
+  }
 
   function info(msg){
     const log = $("log");
@@ -28,14 +47,6 @@
     log.scrollTop = log.scrollHeight;
   }
 
-  function escapeHtml(s){
-    return String(s)
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;");
-  }
-
   function normalizePrice(p){
     const s = String(p || "").trim();
     if (!s) return "";
@@ -45,10 +56,7 @@
     return s;
   }
 
-  /**
-   * CSV parser (quoted commas supported)
-   * Assumes no embedded newlines inside a field.
-   */
+  // Minimal CSV parser (no embedded newlines inside quoted cells)
   function parseCSV(text){
     const lines = text.replace(/\r/g,"").split("\n").filter(l => l.trim().length);
     if (!lines.length) return { header: [], rows: [] };
@@ -106,6 +114,8 @@
       const price = normalizePrice(get(r, "price-item", "price"));
       const sku = urlSlug(product_url) || title || "unknown-item";
       const vendor = get(r, "vendor-name", "vendor");
+
+      // Optional flags / tags if present
       const flag1 = get(r, "product-flag", "flag");
       const flag2 = get(r, "product-flag 2", "flag2");
 
@@ -153,67 +163,56 @@
     return catalog;
   }
 
-  // Scored search, handles messy queries like: "show me a red les paul custom"
-  function searchRank(items, query){
+  // Scoring search: best matches first
+  function searchAll(items, query){
     const q = String(query || "").toLowerCase().trim();
     if (!q) return items.slice();
 
-    // strip common filler words
-    const cleaned = q
-      .replace(/\b(show|me|a|an|the|please|can|you|pull|up|bring|see|some|of|are|there|hello)\b/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+    // crude color hint (only helps if titles/descs contain it)
+    const wantsRed = /\bred\b/.test(q);
+    const wantsBlack = /\bblack\b/.test(q);
 
-    const tokens = cleaned.split(/\s+/).filter(Boolean);
+    const tokens = q.split(/\s+/).filter(Boolean);
 
     return items
       .map(it => {
         const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
         let score = 0;
 
-        // strong matches
-        if (cleaned && hay.includes(cleaned)) score += 120;
+        if (hay.includes(q)) score += 120;
+        for (const t of tokens) if (hay.includes(t)) score += 22;
 
-        // token matches
-        for (const t of tokens){
-          if (!t) continue;
-          if (hay.includes(t)) score += 18;
-        }
-
-        // prefer Les Paul if asked
-        if (tokens.includes("les") && tokens.includes("paul") && hay.includes("les paul")) score += 40;
-        if (tokens.includes("custom") && hay.includes("custom")) score += 30;
+        if (wantsRed && hay.includes("red")) score += 18;
+        if (wantsBlack && (hay.includes("black") || hay.includes("ebony"))) score += 18;
 
         return { it, score };
       })
+      .filter(x => x.score > 0)
       .sort((a,b) => b.score - a.score)
       .map(x => x.it);
   }
 
-  function renderPage(){
-    const productsWrap = $("products");
+  function renderPage(matches, query, offset){
     const grid = $("prodGrid");
-    if (!productsWrap || !grid) return;
+    const panel = $("cardsPanel");
+    if (!grid || !panel) return;
 
     grid.innerHTML = "";
 
-    const start = pageIndex * pageSize;
-    const end = start + pageSize;
-    const page = lastResults.slice(start, end);
+    const slice = matches.slice(offset, offset + PAGE_SIZE);
 
-    if (!page.length){
-      productsWrap.classList.add("show");
-      grid.innerHTML = `<div style="font-size:12px; color:#64748b;">No more matches.</div>`;
+    if (!slice.length){
+      grid.innerHTML = `<div style="font-size:12px; opacity:.82;">No more results for "${escapeHtml(query)}"</div>`;
       return;
     }
 
-    for (const it of page){
+    for (const it of slice){
       const img = it.image_url
         ? `<img src="${escapeHtml(it.image_url)}" alt="">`
-        : `<div style="font-size:11px;color:#64748b;">No image</div>`;
+        : `<div style="font-size:11px; opacity:.8;">No image</div>`;
 
       const link = it.product_url
-        ? `<a class="link" href="${escapeHtml(it.product_url)}" target="_blank" rel="noopener">Open</a>`
+        ? `<a class="linkBtn" href="${escapeHtml(it.product_url)}" target="_blank" rel="noopener">Open</a>`
         : "";
 
       const price = it.price ? `$${it.price}` : "—";
@@ -224,34 +223,69 @@
         <div class="thumb">${img}</div>
         <div>
           <h4>${escapeHtml(it.title || "(Untitled)")}</h4>
-          <p class="meta">SKU: ${escapeHtml(it.sku || "—")}${link ? " • " + link : ""}</p>
-          <p class="meta">${escapeHtml(it.desc || "")}</p>
-          <div class="price">${escapeHtml(price)}</div>
-          <div class="actions">
-            <button class="miniBtn dark" data-add="${escapeHtml(it.product_url || "")}">Add to cart</button>
-            ${link ? link : ""}
+          <p class="meta">SKU: ${escapeHtml(it.sku || "—")}${it.desc ? " • " + escapeHtml(it.desc) : ""}</p>
+          <div class="priceRow">
+            <div class="price">${escapeHtml(price)}</div>
+            <div class="cardBtns">
+              ${link}
+              <button class="linkBtn" data-sku="${escapeHtml(it.sku)}">Add to cart</button>
+            </div>
           </div>
         </div>
       `;
+
+      // “Add to cart” stub
+      card.querySelectorAll('button[data-sku]').forEach(btn => {
+        btn.addEventListener("click", () => {
+          const sku = btn.getAttribute("data-sku") || "";
+          info(`(stub) Add to cart: ${sku}`);
+          // Future: send to backend/cart
+          // window.__gipson_addToCart?.(sku);
+        });
+      });
+
       grid.appendChild(card);
     }
 
-    // Add-to-cart stub (minimal)
-    grid.querySelectorAll("button[data-add]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const url = btn.getAttribute("data-add");
-        info("Added to cart (stub). Real cart integration comes later.");
-        if (url) window.open(url, "_blank", "noopener");
-      });
-    });
-
-    productsWrap.classList.add("show");
+    panel.classList.add("show");
   }
 
-  // Public hooks
+  async function showProducts(query){
+    const items = await loadCatalog();
+
+    lastQuery = String(query || "").trim();
+    lastMatches = searchAll(items, lastQuery);
+    lastOffset = 0;
+
+    if (!lastMatches.length){
+      renderPage([], lastQuery, 0);
+      return;
+    }
+
+    renderPage(lastMatches, lastQuery, lastOffset);
+  }
+
+  function moreResults(){
+    if (!lastMatches.length) return;
+    lastOffset += PAGE_SIZE;
+    renderPage(lastMatches, lastQuery, lastOffset);
+  }
+
+  // Exposed hooks
+  window.__gipson_addLine = addLine;
+
   window.__gipson_loadCatalog = async () => {
     try { await loadCatalog(); }
-    catch(e){ console.error(e); info(`Catalog error: ${String(e.message || e)}`); }
+    catch (e){ console.error(e); info(`Catalog error: ${String(e.message || e)}`); }
   };
 
-  window.__gipson_showProducts = async_
+  window.__gipson_showProducts = async (query) => {
+    try { await showProducts(query); }
+    catch (e){ console.error(e); info(`Show error: ${String(e.message || e)}`); }
+  };
+
+  window.__gipson_moreResults = () => {
+    try { moreResults(); }
+    catch(e){ console.error(e); }
+  };
+})();
