@@ -4,14 +4,12 @@
   let lastQuery = "";
   let lastMatches = [];
   let lastOffset = 0;
+
   const PAGE_SIZE = 6;
 
-  const CSV_URLS = [
-    "/data/gibson.csv",
-    "/data/guitars.csv",
-    "/gibson.csv",
-    "/guitars.csv"
-  ];
+  // Put your 37-guitar CSV here:
+  // public/data/gibson.csv
+  const CSV_URL = "/data/gibson.csv";
 
   function $(id){ return document.getElementById(id); }
 
@@ -32,38 +30,38 @@
     return s;
   }
 
+  function splitCSVLine(line){
+    const res = [];
+    let cur="", inQ=false;
+    for (let i=0;i<line.length;i++){
+      const ch=line[i];
+      if (ch === '"'){
+        if (inQ && line[i+1] === '"'){ cur+='"'; i++; }
+        else inQ = !inQ;
+      } else if (ch === "," && !inQ){
+        res.push(cur); cur="";
+      } else cur += ch;
+    }
+    res.push(cur);
+    return res;
+  }
+
   function parseCSV(text){
     const lines = text.replace(/\r/g,"").split("\n").filter(l => l.trim().length);
-    if (!lines.length) return { rows: [] };
+    if (!lines.length) return { rows: [], header: [] };
 
-    const header = split(lines[0]).map(h => h.trim());
-    const out = [];
+    const header = splitCSVLine(lines[0]).map(h => h.trim());
+    const rows = [];
 
     for (let i=1;i<lines.length;i++){
-      const cols = split(lines[i]);
+      const cols = splitCSVLine(lines[i]);
       const row = {};
       for (let j=0;j<header.length;j++){
         row[header[j]] = (cols[j] ?? "").trim();
       }
-      out.push(row);
+      rows.push(row);
     }
-    return { rows: out };
-
-    function split(line){
-      const res = [];
-      let cur="", inQ=false;
-      for (let i=0;i<line.length;i++){
-        const ch=line[i];
-        if (ch === '"'){
-          if (inQ && line[i+1] === '"'){ cur+='"'; i++; }
-          else inQ = !inQ;
-        } else if (ch === "," && !inQ){
-          res.push(cur); cur="";
-        } else cur += ch;
-      }
-      res.push(cur);
-      return res;
-    }
+    return { rows, header };
   }
 
   function urlSlug(url){
@@ -75,6 +73,8 @@
   }
 
   function normalizeRows(rows){
+    // Your CSV headers (as you mentioned) look like:
+    // "full-unstyled-link href", "motion-reduce src", "full-unstyled-link", "vendor-name", etc.
     const get = (r, ...keys) => {
       for (const k of keys){
         if (k in r && String(r[k]).trim() !== "") return String(r[k]).trim();
@@ -83,14 +83,12 @@
     };
 
     return rows.map(r => {
-      const product_url = get(r, "full-unstyled-link href", "product-card-link", "url", "product_url");
+      const product_url = get(r, "full-unstyled-link href", "url", "product_url");
       const title = get(r, "full-unstyled-link", "title", "name");
-      const image_url = get(r, "motion-reduce src", "linked-product__image src", "image_url", "image");
+      const image_url = get(r, "motion-reduce src", "image_url", "image");
       const price = normalizePrice(get(r, "price-item", "price"));
       const sku = urlSlug(product_url) || title || "unknown-item";
       const vendor = get(r, "vendor-name", "vendor");
-      const flag1 = get(r, "product-flag", "flag");
-      const flag2 = get(r, "product-flag 2", "flag2");
 
       return {
         title,
@@ -98,33 +96,21 @@
         image_url,
         price,
         sku,
-        desc: [vendor, flag1, flag2].filter(Boolean).join(" • ")
+        desc: vendor
       };
     });
   }
 
-  async function fetchFirstWorkingCSV(){
-    const bust = `v=${Date.now()}`;
-    let lastErr = null;
-
-    for (const url of CSV_URLS){
-      try{
-        const r = await fetch(`${url}?${bust}`, { cache:"no-store" });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const text = await r.text();
-        if (!text || !text.trim()) throw new Error("Empty CSV");
-        return { url, text };
-      } catch (e){
-        lastErr = e;
-      }
-    }
-    throw lastErr || new Error("CSV fetch failed");
-  }
-
   async function loadCatalog(){
     if (catalog) return catalog;
-    const { text } = await fetchFirstWorkingCSV();
+
+    const bust = `v=${Date.now()}`;
+    const r = await fetch(`${CSV_URL}?${bust}`, { cache:"no-store" });
+    if (!r.ok) throw new Error(`CSV fetch failed: ${r.status}`);
+
+    const text = await r.text();
     const parsed = parseCSV(text);
+
     catalog = normalizeRows(parsed.rows);
     return catalog;
   }
@@ -132,21 +118,18 @@
   function extractQuery(raw){
     const s = String(raw || "").toLowerCase();
 
-    // Pull the most likely product phrase out of a sentence
+    // If you say “show me an SG / Les Paul Custom / etc”, this pulls a clean search phrase.
     const keys = [
-      "les paul custom",
-      "les paul",
-      "custom",
-      "reissue",
-      "standard",
-      "sg"
+      "les paul custom","les paul","custom",
+      "sg","es-335","es 335",
+      "standard","reissue","junior","special"
     ];
-    for (const k of keys){
-      if (s.includes(k)) return k;
-    }
+    for (const k of keys) if (s.includes(k)) return k;
 
-    // Otherwise keep it as-is
-    return String(raw || "").trim();
+    return String(raw || "")
+      .replace(/^(can you|could you|please|hey|hi|hello)\s+/i,"")
+      .replace(/\b(show me|pull up|bring up|do you have|i want|i need)\b/ig," ")
+      .trim();
   }
 
   function searchAll(items, query){
@@ -159,10 +142,8 @@
       .map(it => {
         const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
         let score = 0;
-
         if (hay.includes(q)) score += 120;
         for (const t of tokens) if (hay.includes(t)) score += 22;
-
         return { it, score };
       })
       .filter(x => x.score > 0)
@@ -178,11 +159,9 @@
 
   function renderPage(matches, query, offset){
     const grid = $("prodGrid");
-    const panel = $("cardsPanel");
-    if (!grid || !panel) return;
+    if (!grid) return;
 
     grid.innerHTML = "";
-
     const slice = matches.slice(offset, offset + PAGE_SIZE);
 
     if (!slice.length){
@@ -212,7 +191,7 @@
             <div class="price">${escapeHtml(price)}</div>
             <div class="cardBtns">
               ${link}
-              <button class="linkBtn" data-sku="${escapeHtml(it.sku)}">Add to cart</button>
+              <button class="linkBtn" data-sku="${escapeHtml(it.sku)}" type="button">Add to cart</button>
             </div>
           </div>
         </div>
@@ -227,8 +206,6 @@
 
       grid.appendChild(card);
     }
-
-    panel.classList.add("show");
   }
 
   async function showProducts(rawQuery){
@@ -253,6 +230,7 @@
     renderPage(lastMatches, lastQuery, lastOffset);
   }
 
+  // Expose minimal API to index.html
   window.__gipson_loadCatalog = async () => { await loadCatalog(); };
   window.__gipson_showProducts = async (q) => { await showProducts(q); };
   window.__gipson_moreResults = () => { moreResults(); };
