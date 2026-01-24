@@ -1,8 +1,13 @@
 // public/gipson.js
-// Catalog loader + search + card render (scoped so it won't redeclare globals)
+// CSV catalog loader + search + cards + paging
+// Scoped to avoid global collisions.
 
 (() => {
   let catalog = null;
+  let lastQuery = "";
+  let lastResults = [];
+  let pageSize = 6;   // cards per page (minimal, quick)
+  let pageIndex = 0;  // paging cursor
 
   const CSV_URLS = [
     "/data/gibson.csv",
@@ -12,15 +17,6 @@
   ];
 
   function $(id){ return document.getElementById(id); }
-
-  function addLine(who, msg){
-    const log = $("log");
-    if (!log) return;
-    const p = document.createElement("p");
-    p.innerHTML = `<span class="who">${escapeHtml(who)}:</span> ${escapeHtml(String(msg))}`;
-    log.appendChild(p);
-    log.scrollTop = log.scrollHeight;
-  }
 
   function info(msg){
     const log = $("log");
@@ -49,6 +45,10 @@
     return s;
   }
 
+  /**
+   * CSV parser (quoted commas supported)
+   * Assumes no embedded newlines inside a field.
+   */
   function parseCSV(text){
     const lines = text.replace(/\r/g,"").split("\n").filter(l => l.trim().length);
     if (!lines.length) return { header: [], rows: [] };
@@ -153,45 +153,67 @@
     return catalog;
   }
 
-  function searchTop(items, query, n=12){
+  // Scored search, handles messy queries like: "show me a red les paul custom"
+  function searchRank(items, query){
     const q = String(query || "").toLowerCase().trim();
-    if (!q) return items.slice(0, n);
-    const tokens = q.split(/\s+/).filter(Boolean);
+    if (!q) return items.slice();
+
+    // strip common filler words
+    const cleaned = q
+      .replace(/\b(show|me|a|an|the|please|can|you|pull|up|bring|see|some|of|are|there|hello)\b/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const tokens = cleaned.split(/\s+/).filter(Boolean);
 
     return items
       .map(it => {
         const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
         let score = 0;
-        if (hay.includes(q)) score += 100;
-        for (const t of tokens) if (hay.includes(t)) score += 20;
+
+        // strong matches
+        if (cleaned && hay.includes(cleaned)) score += 120;
+
+        // token matches
+        for (const t of tokens){
+          if (!t) continue;
+          if (hay.includes(t)) score += 18;
+        }
+
+        // prefer Les Paul if asked
+        if (tokens.includes("les") && tokens.includes("paul") && hay.includes("les paul")) score += 40;
+        if (tokens.includes("custom") && hay.includes("custom")) score += 30;
+
         return { it, score };
       })
-      .filter(x => x.score > 0)
       .sort((a,b) => b.score - a.score)
-      .slice(0, n)
       .map(x => x.it);
   }
 
-  function renderProducts(items, query){
+  function renderPage(){
     const productsWrap = $("products");
     const grid = $("prodGrid");
     if (!productsWrap || !grid) return;
 
     grid.innerHTML = "";
 
-    if (!items.length){
+    const start = pageIndex * pageSize;
+    const end = start + pageSize;
+    const page = lastResults.slice(start, end);
+
+    if (!page.length){
       productsWrap.classList.add("show");
-      grid.innerHTML = `<div style="font-size:12px; color:#64748b;">No matches for "${escapeHtml(query)}"</div>`;
+      grid.innerHTML = `<div style="font-size:12px; color:#64748b;">No more matches.</div>`;
       return;
     }
 
-    for (const it of items){
+    for (const it of page){
       const img = it.image_url
         ? `<img src="${escapeHtml(it.image_url)}" alt="">`
         : `<div style="font-size:11px;color:#64748b;">No image</div>`;
 
       const link = it.product_url
-        ? `<a href="${escapeHtml(it.product_url)}" target="_blank" rel="noopener">Open</a>`
+        ? `<a class="link" href="${escapeHtml(it.product_url)}" target="_blank" rel="noopener">Open</a>`
         : "";
 
       const price = it.price ? `$${it.price}` : "—";
@@ -205,30 +227,31 @@
           <p class="meta">SKU: ${escapeHtml(it.sku || "—")}${link ? " • " + link : ""}</p>
           <p class="meta">${escapeHtml(it.desc || "")}</p>
           <div class="price">${escapeHtml(price)}</div>
+          <div class="actions">
+            <button class="miniBtn dark" data-add="${escapeHtml(it.product_url || "")}">Add to cart</button>
+            ${link ? link : ""}
+          </div>
         </div>
       `;
       grid.appendChild(card);
     }
 
+    // Add-to-cart stub (minimal)
+    grid.querySelectorAll("button[data-add]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const url = btn.getAttribute("data-add");
+        info("Added to cart (stub). Real cart integration comes later.");
+        if (url) window.open(url, "_blank", "noopener");
+      });
+    });
+
     productsWrap.classList.add("show");
   }
 
-  // ---- Expose ONLY these hooks (no global const collisions) ----
-  window.__gipson_addLine = addLine;
-
+  // Public hooks
   window.__gipson_loadCatalog = async () => {
     try { await loadCatalog(); }
-    catch (e){ console.error(e); info(`Catalog error: ${String(e.message || e)}`); }
+    catch(e){ console.error(e); info(`Catalog error: ${String(e.message || e)}`); }
   };
 
-  window.__gipson_showProducts = async (query) => {
-    try{
-      const items = await loadCatalog();
-      const top = searchTop(items, query, 12);
-      renderProducts(top, query || "");
-    } catch (e){
-      console.error(e);
-      info(`Show error: ${String(e.message || e)}`);
-    }
-  };
-})();
+  window.__gipson_showProducts = async_
