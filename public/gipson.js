@@ -34,7 +34,7 @@
 
   function parseCSV(text){
     const lines = text.replace(/\r/g,"").split("\n").filter(l => l.trim().length);
-    if (!lines.length) return { header: [], rows: [] };
+    if (!lines.length) return { rows: [] };
 
     const header = split(lines[0]).map(h => h.trim());
     const out = [];
@@ -47,7 +47,7 @@
       }
       out.push(row);
     }
-    return { header, rows: out };
+    return { rows: out };
 
     function split(line){
       const res = [];
@@ -129,6 +129,26 @@
     return catalog;
   }
 
+  function extractQuery(raw){
+    const s = String(raw || "").toLowerCase();
+
+    // Pull the most likely product phrase out of a sentence
+    const keys = [
+      "les paul custom",
+      "les paul",
+      "custom",
+      "reissue",
+      "standard",
+      "sg"
+    ];
+    for (const k of keys){
+      if (s.includes(k)) return k;
+    }
+
+    // Otherwise keep it as-is
+    return String(raw || "").trim();
+  }
+
   function searchAll(items, query){
     const q = String(query || "").toLowerCase().trim();
     if (!q) return items.slice();
@@ -153,7 +173,7 @@
   function renderMessage(msg){
     const grid = $("prodGrid");
     if (!grid) return;
-    grid.innerHTML = `<div style="font-size:12px; opacity:.82; padding:6px 2px;">${msg}</div>`;
+    grid.innerHTML = `<div style="font-size:12px; opacity:.86; padding:6px 2px;">${msg}</div>`;
   }
 
   function renderPage(matches, query, offset){
@@ -211,29 +231,16 @@
     panel.classList.add("show");
   }
 
-  async function showProducts(query){
+  async function showProducts(rawQuery){
     const items = await loadCatalog();
-    const raw = String(query || "").trim();
-    const q = raw.toLowerCase();
 
-    lastQuery = raw;
-    lastMatches = searchAll(items, raw);
+    const q = extractQuery(rawQuery);
+    lastQuery = q;
+    lastMatches = searchAll(items, q);
     lastOffset = 0;
 
-    // If they asked for SG but your CSV is Les Paul-only, be honest and still show something
-    if (!lastMatches.length) {
-      const askedSG = q.includes(" sg") || q.startsWith("sg") || q.includes("sg ");
-      if (askedSG) {
-        renderMessage(`No SG matches in this catalog. Showing closest results (Les Paul) instead.`);
-        lastQuery = "les paul";
-        lastMatches = searchAll(items, "les paul");
-        lastOffset = 0;
-        if (lastMatches.length) {
-          renderPage(lastMatches, lastQuery, lastOffset);
-          return;
-        }
-      }
-      renderMessage(`No matches for “${escapeHtml(raw)}”.`);
+    if (!lastMatches.length){
+      renderMessage(`No matches for “${escapeHtml(q)}”. (Catalog loaded: ${items.length} items)`);
       return;
     }
 
