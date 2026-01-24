@@ -4,250 +4,45 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Gibson Voice Demo</title>
-
-  <style>
-    :root{
-      /* NUDGE KNOBS */
-      --nav-right: 420px; /* bigger = moves LEFT, smaller = moves RIGHT */
-      --nav-top: 14px;    /* bigger = moves DOWN */
-
-      --nav-size: 20px;
-      --nav-weight: 800;
-
-      --ink:#111111;
-      --muted:rgba(17,17,17,.72);
-      --gold:#d4a23a;
-
-      --shadow: 0 14px 40px rgba(0,0,0,.14);
-      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    }
-
-    *{ box-sizing:border-box; }
-    html,body{ height:100%; }
-    body{
-      margin:0;
-      font-family:var(--font);
-      overflow:hidden;
-      background:#111;
-    }
-
-    .bg{
-      position:fixed; inset:0;
-      background:url("/assets/gibson-bg.png") center/cover no-repeat;
-    }
-    .scrim{
-      position:fixed; inset:0;
-      background: rgba(0,0,0,.06);
-      pointer-events:none;
-    }
-
-    .navWrap{
-      position:fixed;
-      top: var(--nav-top);
-      right: var(--nav-right);
-      z-index: 60;
-      display:flex;
-      align-items:center;
-    }
-
-    .navTab{
-      appearance:none;
-      border:none;
-      background:transparent;
-      color: var(--ink);
-      font: inherit;
-      font-weight: var(--nav-weight);
-      font-size: var(--nav-size);
-      padding: 6px 8px;
-      cursor:pointer;
-      line-height: 1;
-      display:flex;
-      align-items:baseline;
-      gap: 10px;
-      border-radius: 10px;
-      -webkit-font-smoothing: antialiased;
-      text-rendering: geometricPrecision;
-    }
-    .navTab:hover{ background: rgba(0,0,0,.04); }
-    .navTab:active{ transform: translateY(1px); }
-
-    .navDot{
-      width:7px; height:7px;
-      border-radius:999px;
-      background: var(--gold);
-      box-shadow: 0 0 0 3px rgba(212,162,58,.12);
-      transform: translateY(-2px);
-      flex: 0 0 auto;
-    }
-
-    .navSub{
-      font-weight: 700;
-      color: var(--muted);
-      font-size: 14px;
-      white-space:nowrap;
-      transform: translateY(-1px);
-    }
-
-    .micBubble{
-      position:fixed;
-      left:50%;
-      top:50%;
-      transform: translate(-50%,-50%);
-      z-index: 65;
-
-      width: 152px;
-      height: 152px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.20);
-      background: rgba(10,10,10,.18);
-      backdrop-filter: blur(10px);
-      box-shadow: var(--shadow);
-
-      display:none;
-      cursor:pointer;
-      user-select:none;
-      overflow:hidden;
-    }
-    .micBubble.show{ display:grid; place-items:center; }
-    .micBubble.on{
-      border-color: rgba(212,162,58,.55);
-      box-shadow: 0 18px 60px rgba(0,0,0,.25);
-    }
-
-    .micImg{
-      width: 104px;
-      height: 104px;
-      object-fit: contain;
-      display:block;
-      filter: drop-shadow(0 10px 14px rgba(0,0,0,.28));
-    }
-    .micFallback{
-      font-size: 46px;
-      opacity: .92;
-      color:#fff;
-    }
-
-    .cardsPanel{
-      position:fixed;
-      left:50%;
-      top:50%;
-      transform: translate(-50%, 118px);
-      z-index: 64;
-
-      width: min(640px, calc(100vw - 24px));
-      max-height: min(460px, calc(100vh - 240px));
-      overflow:auto;
-
-      border-radius: 18px;
-      border:1px solid rgba(255,255,255,.18);
-      background: rgba(10,10,10,.26);
-      backdrop-filter: blur(10px);
-      box-shadow: var(--shadow);
-      display:none;
-      padding: 12px;
-      color:#fff;
-    }
-    .cardsPanel.show{ display:block; }
-
-    .cardsTop{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-    .cardsTitle{
-      font-weight: 900;
-      font-size: 13px;
-      opacity: .95;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      max-width: 72%;
-    }
-    .cardsActions{
-      display:flex;
-      gap: 8px;
-      align-items:center;
-    }
-    .smallBtn{
-      appearance:none;
-      border: 1px solid rgba(255,255,255,.20);
-      background: rgba(255,255,255,.06);
-      color: rgba(255,255,255,.92);
-      border-radius: 999px;
-      padding: 8px 10px;
-      cursor:pointer;
-      font: inherit;
-      font-weight: 800;
-      font-size: 12px;
-      white-space:nowrap;
-    }
-    .smallBtn:hover{ background: rgba(255,255,255,.10); }
-
-    #prodGrid{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:10px;
-    }
-
-    /* tiny debug strip (optional, helps you know if transcript is arriving) */
-    .dbg{
-      position: fixed;
-      left: 14px;
-      bottom: 12px;
-      z-index: 80;
-      font-size: 12px;
-      opacity: .75;
-      color: #fff;
-      background: rgba(0,0,0,.25);
-      border: 1px solid rgba(255,255,255,.15);
-      padding: 8px 10px;
-      border-radius: 12px;
-      backdrop-filter: blur(8px);
-      max-width: min(520px, calc(100vw - 28px));
-      overflow:hidden;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-      display:none;
-    }
-    .dbg.show{ display:block; }
-  </style>
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 
 <body>
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <div class="navWrap">
-    <button class="navTab" id="navTab" aria-label="Try our new AI Gibson Specialist">
-      <span class="navDot"></span>
-      <span>Gibson Specialist</span>
+  <!-- “Inserted tab” in the same row vibe -->
+  <div class="navWrap" aria-label="AI nav tab">
+    <button class="navTab" id="navTab" type="button" aria-label="Try our new AI Gibson Specialist">
+      <span class="navDot" aria-hidden="true"></span>
+      <span class="navMain">Gibson Specialist</span>
       <span class="navSub">Try our new AI Gibson Specialist</span>
     </button>
   </div>
 
-  <div class="micBubble" id="micBubble" title="Click to talk">
-    <img class="micImg" id="micImg" src="/assets/mic.png" alt="Gibson mic"
-      onerror="this.style.display='none'; document.getElementById('micFallback').style.display='block';">
-    <div class="micFallback" id="micFallback" style="display:none;">🎙️</div>
-  </div>
+  <!-- mic circle -->
+  <button class="micBubble" id="micBubble" type="button" title="Click to talk" aria-label="Click to talk">
+    <img class="micImg" id="micImg" src="/assets/mic.png" alt=""
+      onerror="this.style.display='none'; document.getElementById('micFallback').style.display='grid';">
+    <span class="micFallback" id="micFallback" aria-hidden="true">🎙️</span>
+  </button>
 
-  <div class="cardsPanel" id="cardsPanel" aria-label="Product results">
-    <div class="cardsTop">
+  <!-- products -->
+  <section class="cardsPanel" id="cardsPanel" aria-label="Product results">
+    <header class="cardsTop">
       <div class="cardsTitle" id="cardsTitle">Matches</div>
       <div class="cardsActions">
-        <button class="smallBtn" id="moreBtn">More</button>
-        <button class="smallBtn" id="hideBtn">Hide</button>
+        <button class="smallBtn" id="moreBtn" type="button">More</button>
+        <button class="smallBtn" id="hideBtn" type="button">Hide</button>
       </div>
-    </div>
+    </header>
     <div id="prodGrid"></div>
-  </div>
+  </section>
 
+  <!-- tiny debug (helps prove transcript is arriving) -->
   <div class="dbg" id="dbg"></div>
 
   <script src="/gipson.js"></script>
-
   <script>
     const navTab = document.getElementById("navTab");
     const micBubble = document.getElementById("micBubble");
@@ -261,7 +56,7 @@
       dbg.textContent = s;
       dbg.classList.add("show");
       clearTimeout(dbg._t);
-      dbg._t = setTimeout(()=>dbg.classList.remove("show"), 4500);
+      dbg._t = setTimeout(()=>dbg.classList.remove("show"), 4200);
     }
 
     function triggerProducts(query, source){
@@ -284,7 +79,7 @@
       cardsPanel.classList.add("show");
     });
 
-    // -------- Voice (WebRTC Realtime) --------
+    // ---------- Voice (WebRTC Realtime) ----------
     let pc=null, dc=null, localStream=null, audioEl=null, starting=false;
 
     function hardReset(){
@@ -326,7 +121,6 @@
     async function startVoice(){
       if(starting || pc) return;
       starting=true;
-
       micBubble.classList.add("on");
       hardReset();
 
@@ -343,15 +137,15 @@
       dc.onopen = () => {
         starting=false;
 
-        // ✅ Make sure transcription is enabled (critical)
-        // Realtime input transcription is off by default and must be enabled in session.update. :contentReference[oaicite:3]{index=3}
+        // Enable transcription (this is OFF by default unless you set it)
+        // Docs: input_audio_transcription configured via session.update. :contentReference[oaicite:1]{index=1}
         sendEvent({
           type:"session.update",
           session:{
             input_audio_transcription: { model: "whisper-1" },
             instructions:
-              "You are Gibson's friendly, no-pressure guitar salesperson. Always respond in English. " +
-              "Keep answers short. Do not claim the UI is showing something unless the user confirms it."
+              "You are Gibson's friendly, no-pressure guitar specialist. Always respond in English. " +
+              "Keep answers short. Never claim the UI is showing something unless the user confirms they see it."
           }
         });
 
@@ -365,34 +159,27 @@
         try{
           const evt = JSON.parse(e.data);
 
-          // ---- 1) Best case: we get the user's transcript (depends on input_audio_transcription)
-          // Some sessions emit input_audio_transcription.* events; others include transcript in different places.
-          // We handle multiple likely shapes safely.
-          if (evt.type === "input_audio_transcription.completed" && evt.text) {
+          // ✅ Correct transcription event + field:
+          // conversation.item.input_audio_transcription.completed has `transcript` :contentReference[oaicite:2]{index=2}
+          if (evt.type === "conversation.item.input_audio_transcription.completed" && evt.transcript) {
+            triggerProducts(evt.transcript, "you");
+          }
+
+          // Also accept delta/segment forms (some models emit these) :contentReference[oaicite:3]{index=3}
+          if (evt.type === "conversation.item.input_audio_transcription.delta" && evt.transcript) {
+            // whisper-1 often sends full turns even in delta; safe to trigger
+            triggerProducts(evt.transcript, "you");
+          }
+          if (evt.type === "conversation.item.input_audio_transcription.segment" && evt.text) {
             triggerProducts(evt.text, "you");
           }
 
-          // ---- 2) Common Realtime server event: response audio transcript (assistant transcript)
-          // Docs note you receive transcript deltas/done and then response.done. :contentReference[oaicite:4]{index=4}
-          if (evt.type === "response.audio_transcript.done" && evt.transcript) {
-            // Don't trigger off assistant transcript by default (it often repeats the user's request),
-            // but for demo reliability, we'll trigger if it contains "show" or a model name.
-            const t = String(evt.transcript);
-            if (/(les paul|custom|reissue|standard|sg|show|bring up|pull up)/i.test(t)) {
-              triggerProducts(t, "assistant");
-            }
-          }
-
-          // ---- 3) If the assistant outputs a [[SHOW: ...]] marker anywhere in text, catch it.
-          // (This is optional; we don't depend on it.)
+          // Optional: if assistant outputs [[SHOW: ...]] in text
           if (evt.type === "response.output_text.done" && evt.text) {
             const m = String(evt.text).match(/\[\[\s*SHOW\s*:\s([^\]]+)\]\]/i);
             if (m && m[1]) triggerProducts(m[1].trim(), "SHOW");
           }
-
-        }catch(err){
-          // ignore parse errors
-        }
+        }catch(_){}
       };
 
       const offer = await pc.createOffer();
@@ -420,6 +207,7 @@
       catch(e){ console.error(e); stopVoice(); }
     });
 
+    // preload catalog so “blank page” never happens
     window.__gipson_loadCatalog?.();
   </script>
 </body>
