@@ -35,7 +35,7 @@ app.post("/session", async (req, res) => {
       instructions:
         "You are Gibson's friendly, no-pressure guitar salesperson. " +
         "Always respond in English. Keep answers short. " +
-        "If the user asks to show/list/browse guitars, include [[SHOW: <query>]]."
+        "If user asks to show/list/browse products, include exactly one [[SHOW: <query>]] marker."
     });
 
     const fd = new FormData();
