@@ -1,11 +1,6 @@
-// public/gipson.js
-// Catalog loader + search + card renderer
-// Scoped to avoid global collisions.
-
 (() => {
   let catalog = null;
 
-  // paging state for "More like these"
   let lastQuery = "";
   let lastMatches = [];
   let lastOffset = 0;
@@ -28,25 +23,6 @@
       .replaceAll('"',"&quot;");
   }
 
-  function addLine(who, msg){
-    const log = $("log");
-    if (!log) return;
-    const p = document.createElement("p");
-    p.innerHTML = `<span class="who">${escapeHtml(who)}:</span> ${escapeHtml(String(msg))}`;
-    log.appendChild(p);
-    log.scrollTop = log.scrollHeight;
-  }
-
-  function info(msg){
-    const log = $("log");
-    if (!log) return;
-    const p = document.createElement("p");
-    p.className = "muted";
-    p.textContent = String(msg);
-    log.appendChild(p);
-    log.scrollTop = log.scrollHeight;
-  }
-
   function normalizePrice(p){
     const s = String(p || "").trim();
     if (!s) return "";
@@ -56,7 +32,6 @@
     return s;
   }
 
-  // Minimal CSV parser (no embedded newlines inside quoted cells)
   function parseCSV(text){
     const lines = text.replace(/\r/g,"").split("\n").filter(l => l.trim().length);
     if (!lines.length) return { header: [], rows: [] };
@@ -114,8 +89,6 @@
       const price = normalizePrice(get(r, "price-item", "price"));
       const sku = urlSlug(product_url) || title || "unknown-item";
       const vendor = get(r, "vendor-name", "vendor");
-
-      // Optional flags / tags if present
       const flag1 = get(r, "product-flag", "flag");
       const flag2 = get(r, "product-flag 2", "flag2");
 
@@ -143,7 +116,6 @@
         return { url, text };
       } catch (e){
         lastErr = e;
-        info(`CSV not at ${url} (${String(e.message || e)})`);
       }
     }
     throw lastErr || new Error("CSV fetch failed");
@@ -151,26 +123,15 @@
 
   async function loadCatalog(){
     if (catalog) return catalog;
-
-    info("Loading catalog…");
-    const { url, text } = await fetchFirstWorkingCSV();
+    const { text } = await fetchFirstWorkingCSV();
     const parsed = parseCSV(text);
-
-    info(`CSV loaded from: ${url}`);
-    info(`Rows parsed: ${parsed.rows.length}`);
-
     catalog = normalizeRows(parsed.rows);
     return catalog;
   }
 
-  // Scoring search: best matches first
   function searchAll(items, query){
     const q = String(query || "").toLowerCase().trim();
     if (!q) return items.slice();
-
-    // crude color hint (only helps if titles/descs contain it)
-    const wantsRed = /\bred\b/.test(q);
-    const wantsBlack = /\bblack\b/.test(q);
 
     const tokens = q.split(/\s+/).filter(Boolean);
 
@@ -182,14 +143,17 @@
         if (hay.includes(q)) score += 120;
         for (const t of tokens) if (hay.includes(t)) score += 22;
 
-        if (wantsRed && hay.includes("red")) score += 18;
-        if (wantsBlack && (hay.includes("black") || hay.includes("ebony"))) score += 18;
-
         return { it, score };
       })
       .filter(x => x.score > 0)
       .sort((a,b) => b.score - a.score)
       .map(x => x.it);
+  }
+
+  function renderMessage(msg){
+    const grid = $("prodGrid");
+    if (!grid) return;
+    grid.innerHTML = `<div style="font-size:12px; opacity:.82; padding:6px 2px;">${msg}</div>`;
   }
 
   function renderPage(matches, query, offset){
@@ -202,7 +166,7 @@
     const slice = matches.slice(offset, offset + PAGE_SIZE);
 
     if (!slice.length){
-      grid.innerHTML = `<div style="font-size:12px; opacity:.82;">No more results for "${escapeHtml(query)}"</div>`;
+      renderMessage(`No more results for “${escapeHtml(query)}”.`);
       return;
     }
 
@@ -234,13 +198,10 @@
         </div>
       `;
 
-      // “Add to cart” stub
       card.querySelectorAll('button[data-sku]').forEach(btn => {
         btn.addEventListener("click", () => {
           const sku = btn.getAttribute("data-sku") || "";
-          info(`(stub) Add to cart: ${sku}`);
-          // Future: send to backend/cart
-          // window.__gipson_addToCart?.(sku);
+          console.log("(stub) Add to cart:", sku);
         });
       });
 
@@ -252,13 +213,27 @@
 
   async function showProducts(query){
     const items = await loadCatalog();
+    const raw = String(query || "").trim();
+    const q = raw.toLowerCase();
 
-    lastQuery = String(query || "").trim();
-    lastMatches = searchAll(items, lastQuery);
+    lastQuery = raw;
+    lastMatches = searchAll(items, raw);
     lastOffset = 0;
 
-    if (!lastMatches.length){
-      renderPage([], lastQuery, 0);
+    // If they asked for SG but your CSV is Les Paul-only, be honest and still show something
+    if (!lastMatches.length) {
+      const askedSG = q.includes(" sg") || q.startsWith("sg") || q.includes("sg ");
+      if (askedSG) {
+        renderMessage(`No SG matches in this catalog. Showing closest results (Les Paul) instead.`);
+        lastQuery = "les paul";
+        lastMatches = searchAll(items, "les paul");
+        lastOffset = 0;
+        if (lastMatches.length) {
+          renderPage(lastMatches, lastQuery, lastOffset);
+          return;
+        }
+      }
+      renderMessage(`No matches for “${escapeHtml(raw)}”.`);
       return;
     }
 
@@ -271,21 +246,7 @@
     renderPage(lastMatches, lastQuery, lastOffset);
   }
 
-  // Exposed hooks
-  window.__gipson_addLine = addLine;
-
-  window.__gipson_loadCatalog = async () => {
-    try { await loadCatalog(); }
-    catch (e){ console.error(e); info(`Catalog error: ${String(e.message || e)}`); }
-  };
-
-  window.__gipson_showProducts = async (query) => {
-    try { await showProducts(query); }
-    catch (e){ console.error(e); info(`Show error: ${String(e.message || e)}`); }
-  };
-
-  window.__gipson_moreResults = () => {
-    try { moreResults(); }
-    catch(e){ console.error(e); }
-  };
+  window.__gipson_loadCatalog = async () => { await loadCatalog(); };
+  window.__gipson_showProducts = async (q) => { await showProducts(q); };
+  window.__gipson_moreResults = () => { moreResults(); };
 })();
