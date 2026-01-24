@@ -3,23 +3,26 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Gibson Voice Demo</title>
+  <title>Gibson Voice Specialist</title>
 
   <style>
     :root{
       --ink:#0b1220;
       --muted:#5b6476;
-      --line:#e6e8ee;
-      --shadow: 0 14px 40px rgba(0,0,0,.12);
+      --line:rgba(255,255,255,.22);
+      --panel:rgba(255,255,255,.86);
+      --shadow: 0 14px 40px rgba(0,0,0,.18);
       --radius:16px;
-      --accent:#111827;
-      --gold:#f59e0b;
       --ok:#16a34a;
       --bad:#dc2626;
-      --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
     *{ box-sizing:border-box; }
-    body{ margin:0; font-family:var(--font); color:var(--ink); background:#f6f8fb; }
+    body{
+      margin:0;
+      font-family:inherit; /* IMPORTANT: inherit so the “tab” matches the site */
+      color:var(--ink);
+      background:#000;
+    }
 
     /* Background */
     .bg{
@@ -27,74 +30,125 @@
       background:url("/assets/gibson-bg.png") center/cover no-repeat;
       transform: translateZ(0);
     }
+    /* subtle scrim but keep it bright */
     .scrim{
       position:fixed; inset:0;
-      background: rgba(255,255,255,.08);
+      background: rgba(255,255,255,.06);
       pointer-events:none;
     }
 
-    /* Top button */
+    /* ----- Top nav "tab" (must look like a native website nav item) ----- */
     .topbar{
       position:fixed;
       top: 18px;
-      left: 50%;
-      transform: translateX(-50%);
+      left: 0;
+      right: 0;
       z-index: 50;
-      width: min(780px, calc(100vw - 36px));
       display:flex;
-      justify-content:flex-end;
+      justify-content:center;
       pointer-events:none;
     }
-    .navTry{
-      pointer-events:auto;
+    .topbarInner{
+      width: min(980px, calc(100vw - 36px));
       display:flex;
+      justify-content:flex-end;
       align-items:center;
-      gap:10px;
-      padding: 10px 14px;
+      gap: 18px;
+      pointer-events:none;
+    }
+
+    /* Looks like a nav link/tab (not an app button) */
+    .navTab{
+      pointer-events:auto;
+      appearance:none;
+      border:0;
+      background:transparent;
+      cursor:pointer;
+
+      /* Match "Garage" vibe: simple, clean, integrated */
+      font: inherit;
+      font-weight: 700;
+      letter-spacing: .02em;
+      font-size: 14px;
+      color: rgba(255,255,255,.92);
+      padding: 8px 10px;
+      border-radius: 10px;
+
+      text-shadow: 0 1px 10px rgba(0,0,0,.55);
+      transition: background .12s ease, color .12s ease;
+    }
+    .navTab:hover{
+      background: rgba(0,0,0,.18);
+      color:#fff;
+    }
+    .navTab .sub{
+      display:block;
+      margin-top:2px;
+      font-weight:600;
+      font-size: 11px;
+      letter-spacing: .01em;
+      color: rgba(255,255,255,.75);
+    }
+
+    /* ----- Center mic bubble ----- */
+    .micBubble{
+      position:fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 60;
+
+      width: 72px;
+      height: 72px;
       border-radius: 999px;
-      border:1px solid rgba(255,255,255,.35);
-      background: rgba(255,255,255,.86);
+      border: 1px solid rgba(255,255,255,.35);
+      background: rgba(255,255,255,.14);
       backdrop-filter: blur(10px);
       box-shadow: var(--shadow);
+
+      display:none;
+      align-items:center;
+      justify-content:center;
       cursor:pointer;
       user-select:none;
     }
-    .navDot{
-      width:10px; height:10px;
-      border-radius:999px;
-      background: var(--gold);
-      box-shadow: 0 0 0 4px rgba(245,158,11,0.18);
-    }
-    .navTitle{
-      font-weight:900;
-      letter-spacing:.2px;
-      line-height:1.1;
-    }
-    .navSub{
-      font-size:12px;
-      color: var(--muted);
-      font-weight:700;
-      margin-top:2px;
-      line-height:1.1;
+    .micBubble.show{ display:flex; }
+
+    .micBubble.on{
+      border-color: rgba(245,158,11,.55);
+      box-shadow: 0 14px 40px rgba(0,0,0,.22), 0 0 0 6px rgba(245,158,11,.14);
     }
 
-    /* Popover */
+    .micBubble img{
+      width: 54px;
+      height: 54px;
+      object-fit: contain;
+      display:block;
+      filter: drop-shadow(0 2px 10px rgba(0,0,0,.25));
+    }
+    .micFallback{
+      font-size: 28px;
+      color:#fff;
+      text-shadow: 0 1px 10px rgba(0,0,0,.55);
+    }
+
+    /* ----- Mini cards panel: left + below mic (minimal, functional) ----- */
     .panel{
       position:fixed;
-      top: 70px;
       left: 50%;
-      transform: translateX(-50%);
-      z-index: 60;
+      top: 50%;
+      transform: translate(calc(-50% - 260px), calc(-50% + 88px));
+      z-index: 59;
 
       width: min(520px, calc(100vw - 36px));
-      border-radius: 18px;
-      border:1px solid rgba(255,255,255,.35);
-      background: rgba(255,255,255,.90);
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.35);
+      background: var(--panel);
       backdrop-filter: blur(10px);
       box-shadow: var(--shadow);
-      overflow:hidden;
 
       display:none;
+      overflow:hidden;
     }
     .panel.show{ display:block; }
 
@@ -102,21 +156,17 @@
       display:flex;
       align-items:center;
       justify-content:space-between;
-      padding: 12px 14px;
-      border-bottom:1px solid var(--line);
-    }
-    .brand{
-      display:flex;
-      align-items:center;
       gap:10px;
-      font-weight:900;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(0,0,0,.08);
+      background: rgba(255,255,255,.78);
     }
     .pill{
       font-size:12px;
-      font-weight:900;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid var(--line);
+      font-weight: 800;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,.10);
       background:#fff;
       color:#111827;
       white-space:nowrap;
@@ -124,95 +174,62 @@
     .pill.ok{ border-color: rgba(22,163,74,.35); color: var(--ok); }
     .pill.bad{ border-color: rgba(220,38,38,.35); color: var(--bad); }
 
-    .panelBody{ padding: 12px 14px 14px; }
-
-    .row{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      justify-content:space-between;
-      margin-bottom:10px;
-    }
-
-    .micBtn{
+    .miniBtn{
       appearance:none;
-      border:1px solid var(--line);
+      border: 1px solid rgba(0,0,0,.10);
       background:#fff;
-      border-radius: 14px;
-      padding: 10px 12px;
+      border-radius: 12px;
+      padding: 8px 10px;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 800;
       cursor:pointer;
-      font-weight:900;
-      display:flex;
-      align-items:center;
-      gap:10px;
-      flex: 1;
-      transition: transform .05s ease;
+      color:#111827;
     }
-    .micBtn:active{ transform: translateY(1px); }
-    .micBtn .mic{
-      width:32px; height:32px;
-      border-radius:12px;
-      display:grid; place-items:center;
-      background: rgba(17,24,39,.06);
+    .miniBtn.dark{
+      background:#111827;
+      color:#fff;
+      border-color:#111827;
     }
-    .micBtn.micOn .mic{ background: rgba(245,158,11,.18); }
-    .micBtn.micOn{ border-color: rgba(245,158,11,.45); }
 
-    .closeBtn{
-      appearance:none;
-      border:1px solid var(--line);
-      background:#fff;
-      border-radius: 14px;
-      padding: 10px 12px;
-      cursor:pointer;
-      font-weight:900;
-      white-space:nowrap;
-    }
+    .panelBody{ padding: 10px 12px 12px; }
 
     .log{
-      border:1px solid var(--line);
+      border: 1px solid rgba(0,0,0,.10);
       border-radius: 14px;
-      background: #fff;
-      padding: 10px 12px;
-      height: 160px;
+      background:#fff;
+      padding: 10px 10px;
+      height: 120px;
       overflow:auto;
-      font-size: 13px;
-      line-height: 1.35;
+      font-size: 12px;
+      line-height: 1.3;
+      color:#0b1220;
     }
     .log p{ margin:0 0 8px 0; }
-    .log .who{ font-weight:900; }
-    .log .ai{ font-weight:900; color:#111827; }
-    .log .muted{ color: var(--muted); font-weight:700; }
+    .log .who{ font-weight: 900; }
+    .log .muted{ color: var(--muted); font-weight: 700; }
 
     .controls{
       display:flex;
       gap:10px;
-      margin-top:10px;
+      margin-top: 10px;
     }
     #textIn{
-      flex: 1;
+      flex:1;
       padding: 10px 12px;
       border-radius: 14px;
-      border:1px solid var(--line);
+      border: 1px solid rgba(0,0,0,.10);
       background:#fff;
-      font-size: 13px;
+      font: inherit;
+      font-size: 12px;
       outline:none;
-    }
-    .go{
-      padding: 10px 12px;
-      border-radius: 14px;
-      border:1px solid var(--line);
-      background:#111827;
-      color:#fff;
-      font-weight:900;
-      cursor:pointer;
     }
 
     #products{
       display:none;
-      margin-top:12px;
-      border-top:1px solid var(--line);
-      padding-top:12px;
+      margin-top: 10px;
+      border-top: 1px solid rgba(0,0,0,.08);
+      padding-top: 10px;
     }
     #products.show{ display:block; }
 
@@ -220,24 +237,23 @@
       display:grid;
       grid-template-columns: 1fr;
       gap:10px;
-      margin-top:10px;
+      margin-top: 10px;
     }
 
     .prodCard{
       display:grid;
-      grid-template-columns: 84px 1fr;
+      grid-template-columns: 78px 1fr;
       gap:10px;
-      border:1px solid var(--line);
+      border: 1px solid rgba(0,0,0,.10);
       background:#fff;
       border-radius: 14px;
-      padding:10px;
+      padding: 10px;
       overflow:hidden;
     }
-
     .thumb{
-      width:84px; height:84px;
+      width:78px; height:78px;
       border-radius: 12px;
-      border:1px solid var(--line);
+      border: 1px solid rgba(0,0,0,.10);
       overflow:hidden;
       background: rgba(17,24,39,.04);
       display:grid; place-items:center;
@@ -246,22 +262,43 @@
 
     .prodCard h4{
       margin:0 0 4px 0;
-      font-size: 13px;
+      font-size: 12px;
       line-height:1.2;
+      font-weight: 900;
     }
     .meta{
       margin:0;
-      font-size: 12px;
+      font-size: 11px;
       color: var(--muted);
-      line-height:1.25;
+      line-height: 1.25;
     }
     .price{
       margin-top:6px;
-      font-weight:900;
-      font-size: 13px;
+      font-weight: 900;
+      font-size: 12px;
+      color:#111827;
     }
-    a{ color:#111827; font-weight:900; text-decoration:none; }
-    a:hover{ text-decoration:underline; }
+    .actions{
+      margin-top:8px;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .link{
+      color:#111827;
+      font-weight: 900;
+      text-decoration:none;
+      border-bottom: 1px solid rgba(17,24,39,.25);
+    }
+    .link:hover{ border-bottom-color: rgba(17,24,39,.6); }
+
+    /* Hide panel on very small screens? Keep it usable. */
+    @media (max-width: 740px){
+      .panel{
+        transform: translate(-50%, calc(-50% + 92px));
+        width: min(560px, calc(100vw - 24px));
+      }
+    }
   </style>
 </head>
 
@@ -269,47 +306,45 @@
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- Top “Try our specialist” button -->
+  <!-- Top right “tab” -->
   <div class="topbar">
-    <div class="navTry" id="navTry" aria-label="Open Gibson Specialist">
-      <span class="navDot"></span>
-      <div>
-        <div class="navTitle">Gibson Specialist</div>
-        <div class="navSub">Try our new AI salesperson • Click to talk</div>
-      </div>
+    <div class="topbarInner">
+      <button class="navTab" id="navTry">
+        Try our new AI Gibson Specialist
+        <span class="sub">Click to talk</span>
+      </button>
     </div>
   </div>
 
-  <!-- Popover panel -->
+  <!-- Center mic -->
+  <div class="micBubble" id="micBubble" title="Click to talk">
+    <img id="micImg" src="/assets/mic.png" alt="" onerror="this.remove(); document.getElementById('micFallback').style.display='block';" />
+    <div id="micFallback" class="micFallback" style="display:none;">🎙️</div>
+  </div>
+
+  <!-- Minimal panel: log + fallback text + cards -->
   <div class="panel" id="panel" role="dialog" aria-label="Gibson Specialist Panel">
     <div class="panelTop">
-      <div class="brand">
-        <span class="navDot"></span>
-        <div>Gibson</div>
-      </div>
       <div style="display:flex; gap:10px; align-items:center;">
         <div class="pill" id="connPill">idle</div>
-        <button class="closeBtn" id="closeBtn">Close</button>
+        <button class="miniBtn" id="moreBtn" title="Show more results">Show more</button>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="miniBtn" id="printBtn" title="Coming soon" disabled style="opacity:.55; cursor:not-allowed;">Print</button>
+        <button class="miniBtn" id="closeBtn">Close</button>
       </div>
     </div>
 
     <div class="panelBody">
-      <div class="row">
-        <button class="micBtn" id="micBtn">
-          <span class="mic">🎙️</span>
-          <span id="micLabel">Voice Off</span>
-        </button>
-      </div>
-
       <div class="log" id="log"></div>
 
       <div class="controls">
-        <input id="textIn" type="text" placeholder='Try: "Les Paul Custom" or "[[SHOW: Les Paul]]"' />
-        <button class="go" id="sendBtn">Send</button>
+        <input id="textIn" type="text" placeholder='Try: "Show me a Les Paul Custom"' />
+        <button class="miniBtn dark" id="sendBtn">Send</button>
       </div>
 
       <div id="products">
-        <div style="font-weight:900;">Top matches</div>
+        <div style="font-weight:900;">Matches</div>
         <div id="prodGrid"></div>
       </div>
     </div>
@@ -318,17 +353,15 @@
   <script src="/gipson.js"></script>
 
   <script>
-    // ------- Small helpers (scoped to this script only) -------
-    const panel = document.getElementById("panel");
     const navTry = document.getElementById("navTry");
+    const micBubble = document.getElementById("micBubble");
+    const panel = document.getElementById("panel");
     const closeBtn = document.getElementById("closeBtn");
-
+    const connPill = document.getElementById("connPill");
+    const logEl = document.getElementById("log");
     const textIn = document.getElementById("textIn");
     const sendBtn = document.getElementById("sendBtn");
-
-    const micBtn = document.getElementById("micBtn");
-    const micLabel = document.getElementById("micLabel");
-    const connPill = document.getElementById("connPill");
+    const moreBtn = document.getElementById("moreBtn");
 
     function setPill(state){
       connPill.className = "pill";
@@ -337,21 +370,58 @@
       if (state === "error") connPill.classList.add("bad");
     }
 
-    function extractShowQuery(txt){
-      const m = txt.match(/\[\[\s*SHOW\s*:\s([^\]]+)\]\]/i);
-      if (m) return m[1].trim();
-      const m2 = txt.match(/^\s*(show|list|browse)\s+(.+)$/i);
-      if (m2) return m2[2].trim();
-      return null;
+    function addLine(who, msg){
+      const p = document.createElement("p");
+      p.innerHTML = `<span class="who">${escapeHtml(who)}:</span> ${escapeHtml(msg)}`;
+      logEl.appendChild(p);
+      logEl.scrollTop = logEl.scrollHeight;
     }
 
+    function info(msg){
+      const p = document.createElement("p");
+      p.className = "muted";
+      p.textContent = msg;
+      logEl.appendChild(p);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function escapeHtml(s){
+      return String(s)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;");
+    }
+
+    // ---- Product intent: DO NOT depend on model compliance ----
+    function looksLikeProductRequest(t){
+      const s = String(t || "").toLowerCase();
+      return /show|pull up|bring up|see|list|browse|les paul|custom|reissue|standard|sg|es-335|burst|black|red|goldtop/.test(s);
+    }
+
+    function extractQueryFromUserText(t){
+      // Keep it simple: pass the whole utterance as query.
+      // Your search scorer will still find relevant titles.
+      return String(t || "").trim();
+    }
+
+    // ---- UI toggles ----
     navTry.addEventListener("click", () => {
+      micBubble.classList.add("show");
       panel.classList.add("show");
       if (window.__gipson_loadCatalog) window.__gipson_loadCatalog();
+      info("Ready. Click the mic and ask for a guitar.");
     });
 
     closeBtn.addEventListener("click", () => {
+      micBubble.classList.remove("show");
       panel.classList.remove("show");
+      stopVoice(); // ensures clean reset
+    });
+
+    // ---- Paging (Show more) ----
+    moreBtn.addEventListener("click", () => {
+      if (window.__gipson_showMore) window.__gipson_showMore();
     });
 
     // ---------------- Voice (WebRTC Realtime) ----------------
@@ -390,8 +460,7 @@
 
     function stopVoice(){
       starting = false;
-      micBtn.classList.remove("micOn");
-      micLabel.textContent = "Voice Off";
+      micBubble.classList.remove("on");
       setPill("idle");
       hardReset();
     }
@@ -406,10 +475,9 @@
       starting = true;
 
       setPill("connecting...");
-      micBtn.classList.add("micOn");
-      micLabel.textContent = "Voice On";
+      micBubble.classList.add("on");
 
-      // IMPORTANT: clean slate fixes "2nd try" failures
+      // IMPORTANT: clean slate fixes "2nd try" problems
       hardReset();
 
       pc = new RTCPeerConnection();
@@ -429,16 +497,14 @@
         setPill("connected");
         starting = false;
 
+        // Still encourage SHOW, but we don't rely on it.
         sendEvent({
           type: "session.update",
           session: {
             instructions:
-              "You are Gibson's friendly, no-pressure guitar salesperson. " +
+              "You are Gibson's friendly, no-pressure guitar specialist. " +
               "Always respond in English. Keep answers short (1-3 sentences). " +
-              "If the user asks to show/list/browse/see guitars, you MUST include exactly one marker in your text: " +
-              "[[SHOW: <search query>]]. " +
-              "Example: 'Sure — here are a few Les Paul Customs. [[SHOW: Les Paul Custom]]' " +
-              "Do not omit the SHOW marker when the user is asking to see products."
+              "If the user asks to show/list/browse/see guitars, include exactly one marker: [[SHOW: <search query>]]."
           }
         });
 
@@ -447,7 +513,7 @@
           response: {
             modalities: ["audio","text"],
             instructions:
-              "Greet the user warmly. Ask what they’re shopping for (Les Paul, SG, acoustic, bass). Keep it short."
+              "Say: 'Hey — tell me what you’re looking for and I’ll pull up a few options.' Keep it short."
           }
         });
       };
@@ -456,10 +522,18 @@
         try{
           const evt = JSON.parse(e.data);
 
+          // Your spoken words arrive here
           if (evt.type === "input_audio_transcription.completed" && evt.text) {
-            if (window.__gipson_addLine) window.__gipson_addLine("You", evt.text);
+            addLine("You", evt.text);
+
+            // SIMPLE FIX: show cards from YOUR request immediately
+            if (looksLikeProductRequest(evt.text) && window.__gipson_showProducts) {
+              const q = extractQueryFromUserText(evt.text);
+              window.__gipson_showProducts(q);
+            }
           }
 
+          // Assistant text (nice-to-have)
           if (evt.type === "response.output_text.delta" && typeof evt.delta === "string") {
             currentText += evt.delta;
           }
@@ -467,10 +541,12 @@
           if (evt.type === "response.output_text.done") {
             const txt = (evt.text || currentText || "").trim();
             currentText = "";
-            if (txt) {
-              if (window.__gipson_addLine) window.__gipson_addLine("Gibson", txt);
-              const q = extractShowQuery(txt);
-              if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
+            if (txt) addLine("Gibson", txt);
+
+            // If model emits [[SHOW:...]] use it too
+            const m = txt.match(/\[\[\s*SHOW\s*:\s([^\]]+)\]\]/i);
+            if (m && m[1] && window.__gipson_showProducts) {
+              window.__gipson_showProducts(m[1].trim());
             }
           }
         } catch {}
@@ -497,22 +573,24 @@
       await pc.setRemoteDescription(answer);
     }
 
-    micBtn.addEventListener("click", async () => {
+    micBubble.addEventListener("click", async () => {
+      if (!panel.classList.contains("show")) panel.classList.add("show");
+
       if (pc) return stopVoice();
       try { await startVoice(); }
       catch (e){ console.error(e); setPill("error"); stopVoice(); }
     });
 
-    // ---------------- Text fallback ----------------
+    // ---------------- Text fallback (also shows cards immediately) ----------------
     async function handleSend(){
       const txt = textIn.value.trim();
       if (!txt) return;
       textIn.value = "";
+      addLine("You", txt);
 
-      if (window.__gipson_addLine) window.__gipson_addLine("You", txt);
-
-      const q = extractShowQuery(txt);
-      if (q && window.__gipson_showProducts) window.__gipson_showProducts(q);
+      if (looksLikeProductRequest(txt) && window.__gipson_showProducts) {
+        window.__gipson_showProducts(extractQueryFromUserText(txt));
+      }
 
       if (dc && dc.readyState === "open") {
         sendEvent({
@@ -521,16 +599,16 @@
         });
         sendEvent({ type:"response.create", response:{ modalities:["audio","text"] }});
       } else {
-        if (!q && window.__gipson_addLine) {
-          window.__gipson_addLine("Gibson", 'Turn Voice On, or type: [[SHOW: Les Paul]]');
-        }
+        info('Tip: Click the mic to talk. Or type: "Show Les Paul Custom"');
       }
     }
 
     sendBtn.addEventListener("click", handleSend);
     textIn.addEventListener("keydown", (e) => { if (e.key === "Enter") handleSend(); });
 
+    // Start state
     setPill("idle");
+    info("Click 'Try our new AI Gibson Specialist' to open.");
   </script>
 </body>
 </html>
