@@ -1,4 +1,3 @@
-// server/server.js
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -12,9 +11,9 @@ const __dirname = path.dirname(__filename);
 
 // Serve /public
 const publicDir = path.join(__dirname, "..", "public");
-app.use(express.static(publicDir, { etag: true, lastModified: true }));
+app.use(express.static(publicDir));
 
-// Client posts SDP offer as raw text
+// Browser posts SDP as text
 app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
@@ -31,11 +30,7 @@ app.post("/session", async (req, res) => {
     const sessionConfig = JSON.stringify({
       type: "realtime",
       model,
-      audio: { output: { voice } },
-      instructions:
-        "You are Gibson's friendly, no-pressure guitar salesperson. " +
-        "Always respond in English. Keep answers short. " +
-        "If user asks to show/list/browse products, include exactly one [[SHOW: <query>]] marker."
+      audio: { output: { voice } }
     });
 
     const fd = new FormData();
@@ -50,7 +45,7 @@ app.post("/session", async (req, res) => {
 
     if (!r.ok) {
       const txt = await r.text();
-      console.error("OpenAI realtime error:", r.status, txt);
+      console.error("OpenAI /realtime/calls error:", r.status, txt);
       return res.status(500).send(txt);
     }
 
@@ -63,6 +58,7 @@ app.post("/session", async (req, res) => {
   }
 });
 
+// SPA fallback
 app.get("*", (req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
