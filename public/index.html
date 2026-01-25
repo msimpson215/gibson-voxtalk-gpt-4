@@ -7,26 +7,22 @@
 
   <style>
     :root{
-      /* ---------- NAV TAB PLACEMENT (tweak these) ---------- */
-      --tab-right: 360px; /* bigger = moves LEFT, smaller = moves RIGHT */
+      /* Placement: put this just LEFT of “Garage” like your screenshot */
+      --tab-right: 360px; /* bigger = moves LEFT */
       --tab-top: 14px;    /* bigger = moves DOWN */
 
-      /* ---------- NAV TAB TYPO (match “Garage” vibe) ---------- */
-      --tab-main-size: 22px;
-      --tab-main-weight: 800;
-      --tab-sub-size: 14px;
+      /* Make it match nav vibe */
+      --tab-size: 14px;
+      --tab-weight: 800;
 
-      /* ---------- COLORS ---------- */
-      --ink:#111;
-      --muted: rgba(17,17,17,.72);
+      /* Colors */
       --green:#2b7a2b;
       --gold:#d4a23a;
 
-      /* ---------- MIC CIRCLE ---------- */
-      --mic-size: 132px; /* circle size */
-      --mic-img: 70px;   /* icon size inside */
+      /* Mic circle */
+      --mic-size: 120px;
+      --mic-img: 72px;
 
-      /* ---------- PANEL ---------- */
       --shadow: 0 14px 40px rgba(0,0,0,.14);
       --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
@@ -41,20 +37,19 @@
       background:#111;
     }
 
-    /* Background image */
     .bg{
       position:fixed; inset:0;
       background:url("/assets/gibson-bg.png") center/cover no-repeat;
       transform: translateZ(0);
     }
-    /* Light scrim so it stays bright like your screenshot */
+
     .scrim{
       position:fixed; inset:0;
       background: rgba(255,255,255,0.06);
       pointer-events:none;
     }
 
-    /* Top “inserted tab” */
+    /* Top “inserted nav tab” */
     .navWrap{
       position:fixed;
       top: var(--tab-top);
@@ -63,22 +58,23 @@
       display:flex;
       align-items:center;
     }
+
     .navTab{
       appearance:none;
       border:none;
       background:transparent;
-      color: var(--ink);
       font: inherit;
       padding: 6px 8px;
       cursor:pointer;
       line-height: 1;
       display:flex;
-      align-items:baseline;
+      align-items:center;
       gap: 10px;
       border-radius: 10px;
       -webkit-font-smoothing: antialiased;
       text-rendering: geometricPrecision;
     }
+
     .navTab:hover{ background: rgba(0,0,0,.04); }
     .navTab:active{ transform: translateY(1px); }
 
@@ -87,20 +83,15 @@
       border-radius:999px;
       background: var(--gold);
       box-shadow: 0 0 0 3px rgba(212,162,58,.12);
-      transform: translateY(-2px);
       flex: 0 0 auto;
     }
-    .navMain{
-      font-weight: var(--tab-main-weight);
-      font-size: var(--tab-main-size);
-      white-space:nowrap;
-    }
-    .navSub{
-      font-weight: 800;
-      font-size: var(--tab-sub-size);
-      white-space:nowrap;
+
+    /* ONLY green text now */
+    .navText{
+      font-weight: var(--tab-weight);
+      font-size: var(--tab-size);
       color: var(--green);
-      transform: translateY(-1px);
+      white-space:nowrap;
     }
 
     /* Mic circle */
@@ -211,13 +202,12 @@
       gap: 10px;
     }
 
-    /* Product cards */
+    /* Product cards (these match your gipson.js markup) */
     .prodCard{
       display:grid;
       grid-template-columns: 92px 1fr;
       gap: 10px;
       align-items: start;
-
       border: 1px solid rgba(255,255,255,.14);
       border-radius: 16px;
       padding: 10px;
@@ -266,7 +256,7 @@
     }
     .linkBtn:hover{ background: rgba(255,255,255,.10); }
 
-    /* Debug strip (helps verify transcript arrives) */
+    /* Debug (proves the trigger fired) */
     .dbg{
       position: fixed;
       left: 14px;
@@ -294,11 +284,11 @@
   <div class="bg"></div>
   <div class="scrim"></div>
 
+  <!-- Only green nav text now -->
   <div class="navWrap">
     <button class="navTab" id="navTab" type="button" aria-label="Try our new AI Gibson Specialist">
       <span class="navDot" aria-hidden="true"></span>
-      <span class="navMain">Gibson Specialist</span>
-      <span class="navSub">Try our new AI Gibson Specialist</span>
+      <span class="navText">Try our new AI Gibson Specialist</span>
     </button>
   </div>
 
@@ -419,15 +409,15 @@
       dc.onopen = () => {
         starting=false;
 
-        // IMPORTANT: enable transcription (otherwise you often get voice but no text events)
+        // KEY: force SHOW behavior + forbid “I can’t show pictures”
         sendEvent({
           type:"session.update",
           session:{
             input_audio_transcription: { model: "whisper-1" },
             instructions:
-              "You are Gibson's friendly, no-pressure guitar specialist. Always respond in English. " +
-              "Keep answers short. If the user asks to SHOW a guitar, respond with: [[SHOW: <search phrase>]]. " +
-              "Do not claim the page is showing results unless the user confirms they see them."
+              "You are Gibson's friendly guitar specialist. Always respond in English. Keep answers short. " +
+              "When the user asks to show, browse, list, pull up, or see a guitar, you MUST output exactly: [[SHOW: <search phrase>]]. " +
+              "Never say you cannot show images. Never say the user can already see results unless they confirm it."
           }
         });
 
@@ -435,7 +425,7 @@
           type:"response.create",
           response:{
             modalities:["audio","text"],
-            instructions:"Quick greeting. Ask what guitar they want."
+            instructions:"Quick greeting. Ask what they want to see."
           }
         });
       };
@@ -444,12 +434,12 @@
         try{
           const evt = JSON.parse(e.data);
 
-          // ✅ This is the big fix: correct event name + correct field
+          // 1) Primary: render from YOUR transcript (this bypasses assistant drift)
           if (evt.type === "conversation.item.input_audio_transcription.completed" && evt.transcript) {
             triggerProducts(evt.transcript, "you");
           }
 
-          // Optional: if assistant outputs [[SHOW: ...]] in text
+          // 2) Secondary: if assistant outputs [[SHOW: ...]]
           if (evt.type === "response.output_text.done" && evt.text) {
             const m = String(evt.text).match(/\[\[\s*SHOW\s*:\s([^\]]+)\]\]/i);
             if (m && m[1]) triggerProducts(m[1].trim(), "SHOW");
@@ -482,7 +472,7 @@
       catch(e){ console.error(e); stopVoice(); }
     });
 
-    // preload catalog so the product system is always ready
+    // preload CSV so it’s ready
     window.__gipson_loadCatalog?.();
   </script>
 </body>
