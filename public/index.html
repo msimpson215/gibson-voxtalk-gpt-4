@@ -7,21 +7,20 @@
 
   <style>
     :root{
-      /* Placement: put this just LEFT of “Garage” like your screenshot */
-      --tab-right: 360px; /* bigger = moves LEFT */
+      /* Put the green tab just left of “Garage” */
+      --tab-right: 360px; /* bigger = moves LEFT, smaller = moves RIGHT */
       --tab-top: 14px;    /* bigger = moves DOWN */
 
-      /* Make it match nav vibe */
+      /* Match nav vibe */
       --tab-size: 14px;
       --tab-weight: 800;
 
-      /* Colors */
       --green:#2b7a2b;
       --gold:#d4a23a;
 
       /* Mic circle */
       --mic-size: 120px;
-      --mic-img: 72px;
+      --mic-img: 74px;
 
       --shadow: 0 14px 40px rgba(0,0,0,.14);
       --font: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -49,7 +48,7 @@
       pointer-events:none;
     }
 
-    /* Top “inserted nav tab” */
+    /* The “inserted” nav tab */
     .navWrap{
       position:fixed;
       top: var(--tab-top);
@@ -86,7 +85,6 @@
       flex: 0 0 auto;
     }
 
-    /* ONLY green text now */
     .navText{
       font-weight: var(--tab-weight);
       font-size: var(--tab-size);
@@ -94,7 +92,7 @@
       white-space:nowrap;
     }
 
-    /* Mic circle */
+    /* Mic bubble */
     .micBubble{
       position:fixed;
       left:50%;
@@ -138,7 +136,7 @@
     }
 
     /* Product panel */
-    .cardsPanel{
+    #products{
       position:fixed;
       left:50%;
       top:50%;
@@ -158,7 +156,7 @@
       padding: 12px;
       color:#fff;
     }
-    .cardsPanel.show{ display:block; }
+    #products.show{ display:block; }
 
     .cardsTop{
       display:flex;
@@ -202,7 +200,7 @@
       gap: 10px;
     }
 
-    /* Product cards (these match your gipson.js markup) */
+    /* Card style that works with your existing gipson.js */
     .prodCard{
       display:grid;
       grid-template-columns: 92px 1fr;
@@ -256,7 +254,7 @@
     }
     .linkBtn:hover{ background: rgba(255,255,255,.10); }
 
-    /* Debug (proves the trigger fired) */
+    /* Debug: proves transcript is actually arriving */
     .dbg{
       position: fixed;
       left: 14px;
@@ -284,7 +282,6 @@
   <div class="bg"></div>
   <div class="scrim"></div>
 
-  <!-- Only green nav text now -->
   <div class="navWrap">
     <button class="navTab" id="navTab" type="button" aria-label="Try our new AI Gibson Specialist">
       <span class="navDot" aria-hidden="true"></span>
@@ -298,16 +295,16 @@
     <span class="micFallback" id="micFallback" aria-hidden="true">🎙️</span>
   </button>
 
-  <section class="cardsPanel" id="cardsPanel" aria-label="Product results">
-    <header class="cardsTop">
-      <div class="cardsTitle" id="cardsTitle">Matches</div>
+  <div id="products" aria-label="Product results">
+    <div class="cardsTop">
+      <div class="cardsTitle" id="cardsTitle">Top matches</div>
       <div class="cardsActions">
         <button class="smallBtn" id="moreBtn" type="button">More</button>
         <button class="smallBtn" id="hideBtn" type="button">Hide</button>
       </div>
-    </header>
+    </div>
     <div id="prodGrid"></div>
-  </section>
+  </div>
 
   <div class="dbg" id="dbg"></div>
 
@@ -316,7 +313,7 @@
   <script>
     const navTab = document.getElementById("navTab");
     const micBubble = document.getElementById("micBubble");
-    const cardsPanel = document.getElementById("cardsPanel");
+    const productsWrap = document.getElementById("products");
     const cardsTitle = document.getElementById("cardsTitle");
     const moreBtn = document.getElementById("moreBtn");
     const hideBtn = document.getElementById("hideBtn");
@@ -329,13 +326,18 @@
       dbg._t = setTimeout(()=>dbg.classList.remove("show"), 4200);
     }
 
-    function triggerProducts(query, source){
-      const q = String(query || "").trim();
-      if(!q) return;
-      dbgShow(`${source}: ${q}`);
-      cardsTitle.textContent = `Showing: ${q}`;
-      window.__gipson_showProducts?.(q);
-      cardsPanel.classList.add("show");
+    function showCardsFor(q, source){
+      const query = String(q || "").trim();
+      if(!query) return;
+      dbgShow(`${source}: ${query}`);
+      cardsTitle.textContent = `Top matches: ${query}`;
+      productsWrap.classList.add("show");
+      window.__gipson_showProducts?.(query);
+    }
+
+    function extractShowQuery(text){
+      const m = String(text || "").match(/\[\[\s*SHOW\s*:\s*([^\]]+)\]\]/i);
+      return m && m[1] ? m[1].trim() : "";
     }
 
     navTab.addEventListener("click", () => {
@@ -343,11 +345,8 @@
       if (micBubble.classList.contains("show")) window.__gipson_loadCatalog?.();
     });
 
-    hideBtn.addEventListener("click", () => cardsPanel.classList.remove("show"));
-    moreBtn.addEventListener("click", () => {
-      window.__gipson_moreResults?.();
-      cardsPanel.classList.add("show");
-    });
+    hideBtn.addEventListener("click", () => productsWrap.classList.remove("show"));
+    moreBtn.addEventListener("click", () => window.__gipson_moreResults?.());
 
     // ---------- Voice (WebRTC Realtime) ----------
     let pc=null, dc=null, localStream=null, audioEl=null, starting=false;
@@ -409,23 +408,25 @@
       dc.onopen = () => {
         starting=false;
 
-        // KEY: force SHOW behavior + forbid “I can’t show pictures”
+        // ✅ This is the big missing piece in your older file:
+        // Turn on transcription so we actually get your spoken text events.
         sendEvent({
-          type:"session.update",
-          session:{
+          type: "session.update",
+          session: {
             input_audio_transcription: { model: "whisper-1" },
             instructions:
-              "You are Gibson's friendly guitar specialist. Always respond in English. Keep answers short. " +
-              "When the user asks to show, browse, list, pull up, or see a guitar, you MUST output exactly: [[SHOW: <search phrase>]]. " +
-              "Never say you cannot show images. Never say the user can already see results unless they confirm it."
+              "You are Gibson's friendly, no-pressure guitar specialist. Always respond in English. " +
+              "When the user asks to show/pull up/see a guitar, you MUST output exactly: [[SHOW: <search phrase>]]. " +
+              "Do NOT say you can't show images — the UI will show product cards with images. " +
+              "Keep responses short."
           }
         });
 
         sendEvent({
-          type:"response.create",
-          response:{
-            modalities:["audio","text"],
-            instructions:"Quick greeting. Ask what they want to see."
+          type: "response.create",
+          response: {
+            modalities: ["audio","text"],
+            instructions: "Say: 'What would you like to see today—Les Paul, SG, or something else?'"
           }
         });
       };
@@ -434,15 +435,20 @@
         try{
           const evt = JSON.parse(e.data);
 
-          // 1) Primary: render from YOUR transcript (this bypasses assistant drift)
+          // ✅ Correct transcription event (this is what you were missing)
           if (evt.type === "conversation.item.input_audio_transcription.completed" && evt.transcript) {
-            triggerProducts(evt.transcript, "you");
+            showCardsFor(evt.transcript, "you");
           }
 
-          // 2) Secondary: if assistant outputs [[SHOW: ...]]
+          // Backward-compatible variant (some setups emit this)
+          if (evt.type === "input_audio_transcription.completed" && evt.text) {
+            showCardsFor(evt.text, "you");
+          }
+
+          // ✅ If assistant outputs [[SHOW: ...]] use it too
           if (evt.type === "response.output_text.done" && evt.text) {
-            const m = String(evt.text).match(/\[\[\s*SHOW\s*:\s([^\]]+)\]\]/i);
-            if (m && m[1]) triggerProducts(m[1].trim(), "SHOW");
+            const q = extractShowQuery(evt.text);
+            if (q) showCardsFor(q, "SHOW");
           }
         }catch(_){}
       };
@@ -472,7 +478,7 @@
       catch(e){ console.error(e); stopVoice(); }
     });
 
-    // preload CSV so it’s ready
+    // Preload catalog so images/cards are ready
     window.__gipson_loadCatalog?.();
   </script>
 </body>
