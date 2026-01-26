@@ -9,6 +9,7 @@ const app = express();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Serve /public
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
 
@@ -57,7 +58,7 @@ app.post("/session", async (req, res) => {
   }
 });
 
-// SPA fallback
+// Fallback
 app.get("*", (req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
 });
