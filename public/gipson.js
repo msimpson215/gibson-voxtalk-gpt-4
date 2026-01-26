@@ -6,12 +6,10 @@
   let lastOffset = 0;
 
   const PAGE_SIZE = 6;
-
-  // Put your 37-guitar CSV here:
-  // public/data/gibson.csv
   const CSV_URL = "/data/gibson.csv";
 
-  function $(id){ return document.getElementById(id); }
+  const productsWrap = document.getElementById("products");
+  const grid = document.getElementById("prodGrid");
 
   function escapeHtml(s){
     return String(s)
@@ -19,15 +17,6 @@
       .replaceAll("<","&lt;")
       .replaceAll(">","&gt;")
       .replaceAll('"',"&quot;");
-  }
-
-  function normalizePrice(p){
-    const s = String(p || "").trim();
-    if (!s) return "";
-    const n = s.replace(/[$,]/g, "");
-    const num = Number(n);
-    if (Number.isFinite(num)) return num.toFixed(2);
-    return s;
   }
 
   function splitCSVLine(line){
@@ -73,8 +62,8 @@
   }
 
   function normalizeRows(rows){
-    // Your CSV headers (as you mentioned) look like:
-    // "full-unstyled-link href", "motion-reduce src", "full-unstyled-link", "vendor-name", etc.
+    // Your headers typically:
+    // "full-unstyled-link href", "motion-reduce src", "full-unstyled-link", "vendor-name", "price-item", etc.
     const get = (r, ...keys) => {
       for (const k of keys){
         if (k in r && String(r[k]).trim() !== "") return String(r[k]).trim();
@@ -86,61 +75,34 @@
       const product_url = get(r, "full-unstyled-link href", "url", "product_url");
       const title = get(r, "full-unstyled-link", "title", "name");
       const image_url = get(r, "motion-reduce src", "image_url", "image");
-      const price = normalizePrice(get(r, "price-item", "price"));
-      const sku = urlSlug(product_url) || title || "unknown-item";
       const vendor = get(r, "vendor-name", "vendor");
+      const price = get(r, "price-item", "price");
+      const sku = urlSlug(product_url) || title || "unknown-item";
 
-      return {
-        title,
-        product_url,
-        image_url,
-        price,
-        sku,
-        desc: vendor
-      };
+      return { title, product_url, image_url, vendor, price, sku };
     });
   }
 
   async function loadCatalog(){
     if (catalog) return catalog;
-
     const bust = `v=${Date.now()}`;
     const r = await fetch(`${CSV_URL}?${bust}`, { cache:"no-store" });
     if (!r.ok) throw new Error(`CSV fetch failed: ${r.status}`);
-
     const text = await r.text();
     const parsed = parseCSV(text);
-
     catalog = normalizeRows(parsed.rows);
     return catalog;
   }
 
-  function extractQuery(raw){
-    const s = String(raw || "").toLowerCase();
-
-    // If you say “show me an SG / Les Paul Custom / etc”, this pulls a clean search phrase.
-    const keys = [
-      "les paul custom","les paul","custom",
-      "sg","es-335","es 335",
-      "standard","reissue","junior","special"
-    ];
-    for (const k of keys) if (s.includes(k)) return k;
-
-    return String(raw || "")
-      .replace(/^(can you|could you|please|hey|hi|hello)\s+/i,"")
-      .replace(/\b(show me|pull up|bring up|do you have|i want|i need)\b/ig," ")
-      .trim();
-  }
-
   function searchAll(items, query){
     const q = String(query || "").toLowerCase().trim();
-    if (!q) return items.slice();
+    if(!q) return items.slice();
 
     const tokens = q.split(/\s+/).filter(Boolean);
 
     return items
       .map(it => {
-        const hay = `${it.title} ${it.desc} ${it.sku}`.toLowerCase();
+        const hay = `${it.title} ${it.vendor} ${it.sku}`.toLowerCase();
         let score = 0;
         if (hay.includes(q)) score += 120;
         for (const t of tokens) if (hay.includes(t)) score += 22;
@@ -152,13 +114,12 @@
   }
 
   function renderMessage(msg){
-    const grid = $("prodGrid");
     if (!grid) return;
     grid.innerHTML = `<div style="font-size:12px; opacity:.86; padding:6px 2px;">${msg}</div>`;
+    productsWrap?.classList.add("show");
   }
 
   function renderPage(matches, query, offset){
-    const grid = $("prodGrid");
     if (!grid) return;
 
     grid.innerHTML = "";
@@ -178,20 +139,18 @@
         ? `<a class="linkBtn" href="${escapeHtml(it.product_url)}" target="_blank" rel="noopener">Open</a>`
         : "";
 
-      const price = it.price ? `$${it.price}` : "—";
-
       const card = document.createElement("div");
       card.className = "prodCard";
       card.innerHTML = `
         <div class="thumb">${img}</div>
         <div>
           <h4>${escapeHtml(it.title || "(Untitled)")}</h4>
-          <p class="meta">SKU: ${escapeHtml(it.sku || "—")}${it.desc ? " • " + escapeHtml(it.desc) : ""}</p>
+          <p class="meta">SKU: ${escapeHtml(it.sku || "—")}${it.vendor ? " • " + escapeHtml(it.vendor) : ""}</p>
           <div class="priceRow">
-            <div class="price">${escapeHtml(price)}</div>
+            <div class="price">${escapeHtml(it.price || "—")}</div>
             <div class="cardBtns">
               ${link}
-              <button class="linkBtn" data-sku="${escapeHtml(it.sku)}" type="button">Add to cart</button>
+              <button class="linkBtn" type="button" data-sku="${escapeHtml(it.sku)}">Add to cart</button>
             </div>
           </div>
         </div>
@@ -206,12 +165,13 @@
 
       grid.appendChild(card);
     }
+
+    productsWrap?.classList.add("show");
   }
 
   async function showProducts(rawQuery){
     const items = await loadCatalog();
-
-    const q = extractQuery(rawQuery);
+    const q = String(rawQuery || "").trim();
     lastQuery = q;
     lastMatches = searchAll(items, q);
     lastOffset = 0;
@@ -230,7 +190,6 @@
     renderPage(lastMatches, lastQuery, lastOffset);
   }
 
-  // Expose minimal API to index.html
   window.__gipson_loadCatalog = async () => { await loadCatalog(); };
   window.__gipson_showProducts = async (q) => { await showProducts(q); };
   window.__gipson_moreResults = () => { moreResults(); };
