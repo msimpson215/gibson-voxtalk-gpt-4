@@ -1,13 +1,10 @@
 {
   "name": "gibson-voice-demo",
-  "version": "1.0.2",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server/server.js"
-  },
-  "engines": {
-    "node": ">=18"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
