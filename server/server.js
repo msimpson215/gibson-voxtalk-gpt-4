@@ -8,21 +8,24 @@ dotenv.config();
 
 const app = express();
 
+// __dirname for ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+// Serve /public
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir, { extensions: ["html"] }));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 
+// Mint ephemeral token for browser WebRTC Realtime
 app.get("/token", async (req, res) => {
   try {
     if (!OPENAI_API_KEY) {
-      return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
+      return res.status(500).json({ error: "Missing OPENAI_API_KEY on server" });
     }
 
     const body = {
