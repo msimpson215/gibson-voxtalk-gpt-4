@@ -7,10 +7,8 @@
   <style>
     :root{
       --ink:#0b1220;
-      --muted:#5b6476;
       --bg:#0b0f17;
       --panel:#0f1626;
-      --card:#111b2e;
       --line:rgba(255,255,255,.10);
       --shadow: 0 14px 40px rgba(0,0,0,.35);
       --radius:18px;
@@ -37,11 +35,7 @@
       top:0;
       z-index: 10;
     }
-    .brand{
-      display:flex; gap:10px; align-items:center;
-      font-weight:700;
-      letter-spacing:.4px;
-    }
+    .brand{ display:flex; gap:10px; align-items:center; font-weight:800; }
     .pill{
       padding:6px 10px;
       border:1px solid var(--line);
@@ -55,6 +49,7 @@
     }
     .dot{ width:8px; height:8px; border-radius:999px; background:#777; }
     .dot.on{ background: var(--accent); box-shadow: 0 0 12px rgba(72,255,123,.55); }
+
     .wrap{
       max-width: 1200px;
       margin: 22px auto;
@@ -66,6 +61,7 @@
     @media (max-width: 980px){
       .wrap{ grid-template-columns: 1fr; }
     }
+
     .panel{
       background: rgba(15,22,38,.82);
       border:1px solid var(--line);
@@ -89,11 +85,12 @@
     .sub{
       font-size:12px;
       color:#aeb9d4;
-      font-weight:600;
+      font-weight:700;
       letter-spacing:0;
       text-transform:none;
     }
     .content{ padding: 14px; }
+
     .heroBtn{
       width:100%;
       display:flex;
@@ -105,14 +102,12 @@
       border:1px solid rgba(72,255,123,.35);
       background: linear-gradient(180deg, rgba(72,255,123,.20), rgba(72,255,123,.08));
       color:#eafff1;
-      font-weight:800;
+      font-weight:900;
       letter-spacing:.2px;
       cursor:pointer;
       user-select:none;
     }
-    .heroBtn:hover{
-      filter: brightness(1.06);
-    }
+
     .micRow{
       display:flex;
       gap:10px;
@@ -129,24 +124,20 @@
       place-items:center;
       cursor:pointer;
       user-select:none;
-      position:relative;
     }
     .mic.on{
       border-color: rgba(72,255,123,.55);
       box-shadow: 0 0 0 5px rgba(72,255,123,.10);
     }
-    .mic svg{ width:22px; height:22px; opacity:.95; }
-    .hint{
-      color:#b8c3df;
-      font-size:13px;
-      line-height:1.35;
-    }
+
+    .hint{ color:#b8c3df; font-size:13px; line-height:1.35; }
     .hint code{
       background: rgba(255,255,255,.07);
       border:1px solid var(--line);
       padding: 2px 6px;
       border-radius: 8px;
     }
+
     .grid{
       display:grid;
       grid-template-columns: repeat(2, minmax(0,1fr));
@@ -184,37 +175,11 @@
       flex-direction:column;
       gap:8px;
     }
-    .name{
-      font-weight:800;
-      font-size:14px;
-      line-height:1.25;
-    }
-    .price{
-      font-weight:800;
-      color: var(--accent2);
-      font-size: 13px;
-    }
-    .link a{
-      color:#bcd0ff;
-      text-decoration:none;
-      font-weight:700;
-      font-size: 13px;
-    }
+    .name{ font-weight:900; font-size:14px; line-height:1.25; }
+    .price{ font-weight:900; color: var(--accent2); font-size: 13px; }
+    .link a{ color:#bcd0ff; text-decoration:none; font-weight:800; font-size: 13px; }
     .link a:hover{ text-decoration: underline; }
-    .tags{
-      display:flex;
-      flex-wrap:wrap;
-      gap:6px;
-      margin-top:2px;
-    }
-    .tag{
-      font-size:11px;
-      padding: 4px 7px;
-      border-radius: 999px;
-      border:1px solid var(--line);
-      background: rgba(0,0,0,.18);
-      color:#cfe0ff;
-    }
+
     .log{
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size:12px;
@@ -228,17 +193,16 @@
       max-height: 520px;
       overflow:auto;
     }
-    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:12px; }
     .btn2{
       padding: 10px 12px;
       border-radius: 12px;
       border:1px solid var(--line);
       background: rgba(255,255,255,.06);
       color:#eaf0ff;
-      font-weight:800;
+      font-weight:900;
       cursor:pointer;
     }
-    .btn2:hover{ filter: brightness(1.06); }
   </style>
 </head>
 <body>
@@ -283,11 +247,11 @@
           </div>
           <div class="hint">
             Say: <code>show SG</code> • <code>Les Paul Custom</code> • <code>ES-335</code><br/>
-            Cards are triggered from <b>your transcription</b> only.
+            Cards trigger from <b>your transcription</b> only.
           </div>
         </div>
 
-        <div class="row" style="margin-top:12px">
+        <div class="row">
           <button class="btn2" id="clearBtn">Clear Cards</button>
           <button class="btn2" id="clearLogBtn">Clear Log</button>
         </div>
@@ -300,7 +264,6 @@
 
   <script type="module" src="/gipson.js"></script>
   <script type="module">
-    // ---- UI helpers ----
     const statusDot = document.getElementById("statusDot");
     const statusText = document.getElementById("statusText");
     const micState = document.getElementById("micState");
@@ -314,38 +277,32 @@
       statusText.textContent = s;
       statusDot.classList.toggle("on", !!on);
     }
-    function log(...args){
+    function logLine(...args){
       const msg = args.map(a => typeof a === "string" ? a : JSON.stringify(a, null, 2)).join(" ");
-      logEl.textContent += msg + "\n";
+      logEl.textContent += msg + "\\n";
       logEl.scrollTop = logEl.scrollHeight;
       console.log(...args);
     }
+    function safeJsonParse(s){ try { return JSON.parse(s); } catch { return null; } }
 
     clearBtn.onclick = () => {
       const grid = document.getElementById("prodGrid");
       grid.innerHTML = "";
-      log("UI: cleared cards");
+      logLine("UI: cleared cards");
     };
     clearLogBtn.onclick = () => { logEl.textContent = ""; };
 
-    // ---- Realtime/WebRTC ----
     let pc = null;
     let dc = null;
     let micStream = null;
     let started = false;
 
-    function safeJsonParse(s){
-      try { return JSON.parse(s); } catch { return null; }
-    }
-
     async function getEphemeralKey(){
       const r = await fetch("/token");
       const data = await r.json();
-
-      // Docs show { value: "<ephemeral>" }, but be defensive:
       const key = data?.value || data?.client_secret?.value || data?.client_secret || null;
       if (!key) {
-        log("TOKEN ERROR:", data);
+        logLine("TOKEN ERROR:", data);
         throw new Error("No ephemeral key returned from /token");
       }
       return key;
@@ -356,30 +313,23 @@
       started = true;
 
       setStatus("getting token…", false);
-      log("Starting realtime…");
+      logLine("Starting realtime…");
 
       const EPHEMERAL_KEY = await getEphemeralKey();
-      setStatus("building peer…", false);
 
       pc = new RTCPeerConnection();
 
-      // remote audio playback
+      // play remote audio
       const audioEl = document.createElement("audio");
       audioEl.autoplay = true;
-      pc.ontrack = (e) => {
-        audioEl.srcObject = e.streams[0];
-      };
+      pc.ontrack = (e) => { audioEl.srcObject = e.streams[0]; };
 
       // mic
       micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const [track] = micStream.getAudioTracks();
       pc.addTrack(track);
 
-      log("Mic track:", {
-        enabled: track.enabled,
-        muted: track.muted,
-        readyState: track.readyState
-      });
+      logLine("Mic track:", { enabled: track.enabled, muted: track.muted, readyState: track.readyState });
 
       // data channel
       dc = pc.createDataChannel("oai-events");
@@ -387,9 +337,9 @@
       dc.onopen = () => {
         setStatus("connected", true);
         micState.textContent = "mic ready";
-        log("DC open");
+        logLine("DC open");
 
-        // **CRITICAL**: enable transcription + server VAD
+        // Enable transcription + VAD, and keep assistant from saying “can’t show images”
         dc.send(JSON.stringify({
           type: "session.update",
           session: {
@@ -398,11 +348,11 @@
             instructions:
               "You are a helpful Gibson guitar specialist. Keep responses concise. " +
               "Do not say you cannot show images; the UI renders product images. " +
-              "If the user asks to show a guitar, respond normally but do not output special tags."
+              "Do not output special tags. The UI triggers product cards from user transcription."
           }
         }));
 
-        // Optional: say hello once (comment out if you don't want model speaking)
+        // optional greeting
         dc.send(JSON.stringify({
           type: "response.create",
           response: {
@@ -414,18 +364,78 @@
 
       dc.onmessage = (e) => {
         const msg = safeJsonParse(e.data);
-        if (!msg) {
-          log("DC <- (nonjson)", e.data);
-          return;
-        }
+        if (!msg) { logLine("DC <- (nonjson)", e.data); return; }
 
-        // Always log event type so we never guess again.
-        log("DC <- " + msg.type);
+        // Always log type
+        logLine("DC <-", msg.type);
 
-        // ==== TRANSCRIPTION (this is the trigger path) ====
+        // Our ONLY trigger path
         if (msg.type === "conversation.item.input_audio_transcription.completed") {
           const t = (msg.transcript || "").trim();
           if (t) {
-            log("TRANSCRIPT COMPLETED:", t);
-            // Trigger product cards from transcript ONLY
-            if (win
+            logLine("TRANSCRIPT:", t);
+            if (window.showProducts) window.showProducts(t);
+          }
+        }
+
+        // Optional visibility
+        if (msg.type === "conversation.item.input_audio_transcription.failed") {
+          logLine("TRANSCRIPTION FAILED:", msg.error || msg);
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      setStatus("sending sdp…", false);
+
+      const sdpResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
+        method: "POST",
+        body: offer.sdp,
+        headers: {
+          Authorization: `Bearer ${EPHEMERAL_KEY}`,
+          "Content-Type": "application/sdp"
+        }
+      });
+
+      const answerSdp = await sdpResponse.text();
+      if (!sdpResponse.ok) {
+        logLine("SDP ERROR:", answerSdp);
+        throw new Error("Realtime SDP exchange failed");
+      }
+
+      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+
+      setStatus("connected", true);
+      logLine("Peer connected. Speak now.");
+    }
+
+    function toggleMicUI(on){
+      micBtn.classList.toggle("on", on);
+      micState.textContent = on ? "mic on (speak)" : "mic off";
+    }
+
+    tryBtn.onclick = async () => {
+      try { await startRealtime(); toggleMicUI(true); }
+      catch (err) { started = false; setStatus("error", false); logLine("START ERROR:", String(err?.message || err)); }
+    };
+
+    micBtn.onclick = async () => {
+      try {
+        if (!started) await startRealtime();
+        const track = micStream?.getAudioTracks?.()[0];
+        if (!track) return;
+        track.enabled = !track.enabled;
+        toggleMicUI(track.enabled);
+        logLine("Mic track.enabled =", track.enabled);
+      } catch (err) {
+        started = false;
+        setStatus("error", false);
+        logLine("MIC ERROR:", String(err?.message || err));
+      }
+    };
+
+    setStatus("idle", false);
+  </script>
+</body>
+</html>
