@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const query = queryInput.value;
+    const query = queryInput.value.trim();
 
     // Send query to the backend
     const response = await fetch("/search", {
@@ -31,7 +31,9 @@ document.addEventListener("DOMContentLoaded", () => {
       productCard.className = "product-card";
 
       productCard.innerHTML = `
-        <img src="${product['motion-reduce src']}" alt="${product['full-unstyled-link']}" />
+        <div>
+          <img src="${product['motion-reduce src']}" alt="${product['full-unstyled-link']}" />
+        </div>
         <h3>${product['full-unstyled-link']}</h3>
         <p>Price: ${product['price-item']}</p>
         <a href="${product['full-unstyled-link href']}" target="_blank">View Product</a>
