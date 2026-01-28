@@ -2,10 +2,10 @@ const express = require("express");
 const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
-const csvParser = require("csv-parser"); // Install this with `npm install csv-parser`
+const csvParser = require("csv-parser"); // We'll use this to parse CSV files
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 // Middleware
 app.use(cors());
@@ -22,12 +22,13 @@ fs.createReadStream(csvFilePath)
     products.push(row);
   })
   .on("end", () => {
-    console.log("CSV file successfully loaded");
+    console.log("Product catalog loaded!");
   });
 
-// Search functionality
+// Search products
 app.post("/search", (req, res) => {
   const query = req.body.query?.toLowerCase() || "";
+
   const results = products.filter((product) => {
     const name = product["full-unstyled-link"]?.toLowerCase() || "";
     const finish = product["product-flag 2"]?.toLowerCase() || "";
@@ -37,7 +38,7 @@ app.post("/search", (req, res) => {
   res.json(results);
 });
 
-// Start server
+// Start the server
 app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`Server started at http://localhost:${PORT}`);
 });
