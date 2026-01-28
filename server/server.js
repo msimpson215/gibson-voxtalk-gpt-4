@@ -2,6 +2,8 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import fs from "fs";
+import csvParser from "csv-parser";
 
 dotenv.config();
 
@@ -17,6 +19,36 @@ app.use(express.static(publicDir));
 app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
+
+let guitarData = []; // Variable to hold CSV data
+
+// Load the CSV file on server startup
+const csvFilePath = path.join(__dirname, "..", "assets", "gibson (1).csv"); // Adjust path if needed
+fs.createReadStream(csvFilePath)
+  .pipe(csvParser())
+  .on("data", (row) => {
+    guitarData.push(row);
+  })
+  .on("end", () => {
+    console.log("CSV file loaded successfully:", guitarData.length, "rows");
+  })
+  .on("error", (err) => {
+    console.error("Error loading CSV file:", err);
+  });
+
+// Endpoint to validate if CSV is loaded
+app.get("/csv-test", (req, res) => {
+  res.json(guitarData); // Send raw CSV data as JSON
+});
+
+// Endpoint to query guitars
+app.get("/guitars", (req, res) => {
+  const query = req.query.query?.toLowerCase(); // Get the search query
+  const results = guitarData.filter((guitar) =>
+    guitar["vendor-name"]?.toLowerCase().includes(query)
+  ); // Match "vendor-name" column
+  res.json(results); // Return matching guitars
+});
 
 app.post("/session", async (req, res) => {
   try {
