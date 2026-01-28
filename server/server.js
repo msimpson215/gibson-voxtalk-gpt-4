@@ -1,48 +1,67 @@
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
+import express from "express";
+import path from "path";
+import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// Middleware
-app.use(express.json()); // To parse JSON in POST requests
-app.use(express.static(path.join(__dirname, "../public"))); // Serve static files
+// Serve /public
+const publicDir = path.join(__dirname, "..", "public");
+app.use(express.static(publicDir));
 
-// Load CSV data into memory
-let products = [];
-const csvFilePath = path.join(__dirname, "../data/gibson.csv");
+// Browser posts SDP as text
+app.use(express.text({ type: ["application/sdp", "text/plain"] }));
 
-function loadCSV() {
-  const csvData = fs.readFileSync(csvFilePath, "utf8");
-  const rows = csvData.split("\n");
-  const headers = rows.shift().split(","); // First row = column headers
+app.get("/health", (req, res) => res.json({ ok: true }));
 
-  products = rows.map((row) => {
-    const values = row.split(",");
-    return headers.reduce((obj, header, index) => {
-      obj[header.trim()] = values[index]?.trim() || "";
-      return obj;
-    }, {});
-  });
-}
+app.post("/session", async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: "Missing OPENAI_API_KEY in environment" });
+    }
 
-loadCSV(); // Load CSV data on server start
+    const model = process.env.REALTIME_MODEL || "gpt-realtime";
+    const voice = process.env.REALTIME_VOICE || "alloy";
 
-// Search products by query
-app.post("/search", (req, res) => {
-  const query = req.body.query?.toLowerCase() || "";
+    const sessionConfig = JSON.stringify({
+      type: "realtime",
+      model,
+      audio: { output: { voice } }
+    });
 
-  const results = products.filter((product) => {
-    const name = product["full-unstyled-link"]?.toLowerCase() || "";
-    const finish = product["product-flag 2"]?.toLowerCase() || "";
-    return name.includes(query) || finish.includes(query);
-  });
+    const fd = new FormData();
+    fd.set("sdp", req.body);
+    fd.set("session", sessionConfig);
 
-  res.json(results);
+    const r = await fetch("https://api.openai.com/v1/realtime/calls", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: fd
+    });
+
+    if (!r.ok) {
+      const txt = await r.text();
+      console.error("OpenAI /realtime/calls error:", r.status, txt);
+      return res.status(500).send(txt);
+    }
+
+    const sdpAnswer = await r.text();
+    res.setHeader("Content-Type", "application/sdp");
+    return res.send(sdpAnswer);
+  } catch (err) {
+    console.error("Session error:", err);
+    return res.status(500).json({ error: "Failed to create realtime session" });
+  }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+// SPA fallback
+app.get("*", (req, res) => {
+  res.sendFile(path.join(publicDir, "index.html"));
 });
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
