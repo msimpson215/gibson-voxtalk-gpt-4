@@ -1,11 +1,16 @@
 // public/gipson.js
-// Robust CSV loader that auto-detects name/price/image/url even if headers are weird.
+// Uses /data/gibson.csv AS-IS (any headers, any column order) and auto-detects fields.
+// If your CSV contains commas inside names WITHOUT quotes, no parser on earth can guess the columns.
+// But if it's normal CSV (quoted when needed), this will work.
 
 const grid = document.getElementById("prodGrid");
 const catalogState = document.getElementById("catalogState");
 
 let CATALOG = [];
 let READY = false;
+
+// If image values are filenames (e.g. "sg.jpg"), we'll try these prefixes:
+const LOCAL_IMAGE_PREFIXES = ["/assets/", "/images/", "/img/"];
 
 function setState(msg){
   if (catalogState) catalogState.textContent = msg;
@@ -27,6 +32,7 @@ function csvParseLine(line){
   for (let i = 0; i < line.length; i++){
     const ch = line[i];
     if (ch === '"'){
+      // doubled quote inside quoted text => literal quote
       if (inQ && line[i+1] === '"'){ cur += '"'; i++; }
       else inQ = !inQ;
     } else if (ch === "," && !inQ){
@@ -37,7 +43,7 @@ function csvParseLine(line){
     }
   }
   out.push(cur);
-  return out.map(s => s.trim());
+  return out.map(s => (s ?? "").trim());
 }
 
 function parseCSV(text){
@@ -45,17 +51,19 @@ function parseCSV(text){
   if (lines.length < 2) return { headers: [], rows: [] };
 
   const headersRaw = csvParseLine(lines[0]);
-  const headers = headersRaw.map(h => normalize(h));
+  const headers = headersRaw.map(h => normalize(h) || "");
 
   const rows = [];
   for (let i=1; i<lines.length; i++){
     const cols = csvParseLine(lines[i]);
-    const obj = {};
-    for (let c=0; c<headers.length; c++){
-      obj[headers[c] || `col${c}`] = (cols[c] ?? "").trim();
+    const obj = { __cols: cols };
+
+    // map by header name if possible (even if blank use col#)
+    for (let c=0; c<cols.length; c++){
+      const key = headers[c] || `col${c}`;
+      obj[key] = (cols[c] ?? "").trim();
     }
-    // also keep positional array in case headers are junk
-    obj.__cols = cols.map(v => (v ?? "").trim());
+
     rows.push(obj);
   }
   return { headers, rows };
@@ -66,19 +74,90 @@ function isUrl(s){
 }
 
 function isImageUrl(s){
-  return /^https?:\/\/\S+\.(png|jpg|jpeg|webp)(\?.*)?$/i.test(s || "");
+  return /^https?:\/\/\S+\.(png|jpg|jpeg|webp|gif)(\?.*)?$/i.test(s || "");
+}
+
+function isFileImage(s){
+  return /^[^\/\\]+\.(png|jpg|jpeg|webp|gif)$/i.test(s || "");
 }
 
 function looksLikePrice(s){
   if (!s) return false;
-  const t = s.replace(/[, ]/g, "");
-  return /^\$?\d+(\.\d{2})?$/.test(t) || /usd/i.test(s);
+  const t = String(s).replace(/[, ]/g, "");
+  // $1999, 1999, 1999.00, USD 1999
+  return /^\$?\d+(\.\d{2})?$/.test(t) || /\bUSD\b/i.test(s);
 }
 
 function cleanPrice(s){
   if (!s) return "";
-  const m = String(s).match(/\$?\s*([0-9]{1,3}(?:,[0-9]{3})*|[0-9]+)(\.[0-9]{2})?/);
-  return m ? (m[0].replace(/\s+/g,"").replace(/^USD/i,"")) : "";
+  // pull first number-ish
+  const m = String(s).match(/(\$?\s*[0-9]{1,3}(?:,[0-9]{3})*|[0-9]+)(\.[0-9]{2})?/);
+  return m ? m[0].replace(/\s+/g, "") : "";
+}
+
+function firstImageCandidate(cols){
+  // prefer full image URLs
+  for (const v of cols){
+    if (isImageUrl(v)) return v;
+  }
+  // then file image names like "sg.jpg"
+  for (const v of cols){
+    if (isFileImage(v)) return v;
+  }
+  // sometimes images are URLs without extension (CDN). If a cell has "image" in it, use it.
+  for (const v of cols){
+    if (isUrl(v) && /img|image|photo|cdn/i.test(v)) return v;
+  }
+  return "";
+}
+
+function firstPageUrl(cols){
+  // first non-image URL
+  for (const v of cols){
+    if (isUrl(v) && !isImageUrl(v)) return v;
+  }
+  return "";
+}
+
+function bestNameCandidate(cols){
+  // longest non-url non-price text
+  let best = "";
+  for (const v of cols){
+    if (!v) continue;
+    if (isUrl(v)) continue;
+    if (looksLikePrice(v)) continue;
+    const t = String(v).trim();
+    if (t.length > best.length) best = t;
+  }
+  // fallback: first non-empty cell
+  if (!best){
+    for (const v of cols){
+      if (String(v || "").trim()) return String(v).trim();
+    }
+  }
+  return best;
+}
+
+function bestPriceCandidate(cols){
+  for (const v of cols){
+    if (looksLikePrice(v)) return cleanPrice(v);
+  }
+  return "";
+}
+
+function resolveImage(img){
+  if (!img) return "";
+  if (isImageUrl(img)) return img;
+  if (isUrl(img)) return img; // allow non-ext cdn links
+  if (isFileImage(img)){
+    // try local prefixes
+    for (const p of LOCAL_IMAGE_PREFIXES){
+      return p + img;
+    }
+  }
+  // maybe it's already a relative path like "assets/sg.jpg"
+  if (/^(assets|images|img)\//i.test(img)) return "/" + img.replace(/^\/+/, "");
+  return img;
 }
 
 function buildCard(p){
@@ -93,7 +172,18 @@ function buildCard(p){
   img.loading = "lazy";
   img.referrerPolicy = "no-referrer";
   img.src = p.image || "";
-  img.onerror = () => { img.style.display = "none"; };
+  img.onerror = () => {
+    // if image fails, show a simple placeholder instead of a blank box
+    img.style.display = "none";
+    const ph = document.createElement("div");
+    ph.style.padding = "10px";
+    ph.style.opacity = ".9";
+    ph.style.fontWeight = "900";
+    ph.style.textAlign = "center";
+    ph.style.color = "#b8c3df";
+    ph.textContent = "No image";
+    thumb.appendChild(ph);
+  };
   thumb.appendChild(img);
 
   const meta = document.createElement("div");
@@ -171,59 +261,22 @@ function score(p, tokens){
   return s;
 }
 
-// Try header-based mapping first; fallback to auto-detect per row.
-function mapRow(row){
-  const keys = Object.keys(row).filter(k => k !== "__cols");
+function mapRowAsIs(row){
+  const cols = (row.__cols || []).map(v => (v ?? "").trim()).filter(v => v.length);
 
-  // common header candidates
-  const byKey = (cands) => {
-    for (const k of keys){
-      for (const c of cands){
-        if (k.includes(c)) return row[k];
-      }
-    }
-    return "";
-  };
+  const name = bestNameCandidate(cols);
+  const price = bestPriceCandidate(cols);
+  const rawImg = firstImageCandidate(cols);
+  const image = resolveImage(rawImg);
+  const url = firstPageUrl(cols);
 
-  let name  = byKey(["name","title","model","product"]);
-  let price = byKey(["price","msrp","cost","amount"]);
-  let image = byKey(["image","img","photo","picture","thumb"]);
-  let url   = byKey(["url","link","href","page"]);
-  let tags  = byKey(["tags","keywords","series","type"]);
-
-  // If wrong/missing, auto-detect from columns
-  const cols = row.__cols || [];
-
-  if (!name || isUrl(name) || looksLikePrice(name)){
-    // pick the longest non-url text cell
-    let best = "";
-    for (const v of cols){
-      if (!v) continue;
-      if (isUrl(v)) continue;
-      if (looksLikePrice(v)) continue;
-      if (v.length > best.length) best = v;
-    }
-    name = best || name;
-  }
-
-  if (!image || !isImageUrl(image)){
-    for (const v of cols){
-      if (isImageUrl(v)) { image = v; break; }
-    }
-  }
-
-  if (!url || !isUrl(url) || isImageUrl(url)){
-    for (const v of cols){
-      if (isUrl(v) && !isImageUrl(v)) { url = v; break; }
-    }
-  }
-
-  if (!price || !looksLikePrice(price)){
-    for (const v of cols){
-      if (looksLikePrice(v)) { price = v; break; }
-    }
-  }
-  price = cleanPrice(price);
+  // tags: everything except name/price/urls
+  const tags = cols
+    .filter(v => v !== name)
+    .filter(v => !looksLikePrice(v))
+    .filter(v => !isUrl(v))
+    .slice(0, 6)
+    .join(" ");
 
   return { name, price, image, url, tags };
 }
@@ -237,10 +290,16 @@ async function loadCatalog(){
     const text = await r.text();
     const { rows } = parseCSV(text);
 
-    CATALOG = rows.map(mapRow).filter(p => p.name);
+    CATALOG = rows
+      .map(mapRowAsIs)
+      .filter(p => p.name);
 
     READY = true;
     setState(`ready (${CATALOG.length} guitars)`);
+
+    // Debug: show first 3 mapped results in console
+    console.log("CSV MAPPED SAMPLE (first 3):", CATALOG.slice(0, 3));
+
     render(CATALOG.slice(0, 6), "Catalog loaded. Type or speak a model to filter.");
   } catch(err){
     READY = false;
