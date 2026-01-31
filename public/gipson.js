@@ -1,5 +1,5 @@
 // public/gipson.js
-// Loads /data/gibson.csv and exposes window.showProducts(query)
+// Robust CSV loader that auto-detects name/price/image/url even if headers are weird.
 
 const grid = document.getElementById("prodGrid");
 const catalogState = document.getElementById("catalogState");
@@ -14,7 +14,7 @@ function setState(msg){
 function normalize(s){
   return (s || "")
     .toLowerCase()
-    .replace(/[^a-z0-9\s\-']/g, " ")
+    .replace(/[^a-z0-9\s\-'/.:?=&%]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -41,21 +41,44 @@ function csvParseLine(line){
 }
 
 function parseCSV(text){
-  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  if (lines.length < 2) return [];
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+  if (lines.length < 2) return { headers: [], rows: [] };
 
-  const headers = csvParseLine(lines[0]).map(h => normalize(h));
+  const headersRaw = csvParseLine(lines[0]);
+  const headers = headersRaw.map(h => normalize(h));
+
   const rows = [];
-
   for (let i=1; i<lines.length; i++){
     const cols = csvParseLine(lines[i]);
     const obj = {};
     for (let c=0; c<headers.length; c++){
-      obj[headers[c]] = cols[c] ?? "";
+      obj[headers[c] || `col${c}`] = (cols[c] ?? "").trim();
     }
+    // also keep positional array in case headers are junk
+    obj.__cols = cols.map(v => (v ?? "").trim());
     rows.push(obj);
   }
-  return rows;
+  return { headers, rows };
+}
+
+function isUrl(s){
+  return /^https?:\/\/\S+/i.test(s || "");
+}
+
+function isImageUrl(s){
+  return /^https?:\/\/\S+\.(png|jpg|jpeg|webp)(\?.*)?$/i.test(s || "");
+}
+
+function looksLikePrice(s){
+  if (!s) return false;
+  const t = s.replace(/[, ]/g, "");
+  return /^\$?\d+(\.\d{2})?$/.test(t) || /usd/i.test(s);
+}
+
+function cleanPrice(s){
+  if (!s) return "";
+  const m = String(s).match(/\$?\s*([0-9]{1,3}(?:,[0-9]{3})*|[0-9]+)(\.[0-9]{2})?/);
+  return m ? (m[0].replace(/\s+/g,"").replace(/^USD/i,"")) : "";
 }
 
 function buildCard(p){
@@ -70,6 +93,7 @@ function buildCard(p){
   img.loading = "lazy";
   img.referrerPolicy = "no-referrer";
   img.src = p.image || "";
+  img.onerror = () => { img.style.display = "none"; };
   thumb.appendChild(img);
 
   const meta = document.createElement("div");
@@ -81,7 +105,7 @@ function buildCard(p){
 
   const price = document.createElement("div");
   price.className = "price";
-  price.textContent = p.price ? `$${p.price}` : "";
+  price.textContent = p.price ? (String(p.price).startsWith("$") ? p.price : `$${p.price}`) : "";
 
   const link = document.createElement("div");
   link.className = "link";
@@ -147,6 +171,63 @@ function score(p, tokens){
   return s;
 }
 
+// Try header-based mapping first; fallback to auto-detect per row.
+function mapRow(row){
+  const keys = Object.keys(row).filter(k => k !== "__cols");
+
+  // common header candidates
+  const byKey = (cands) => {
+    for (const k of keys){
+      for (const c of cands){
+        if (k.includes(c)) return row[k];
+      }
+    }
+    return "";
+  };
+
+  let name  = byKey(["name","title","model","product"]);
+  let price = byKey(["price","msrp","cost","amount"]);
+  let image = byKey(["image","img","photo","picture","thumb"]);
+  let url   = byKey(["url","link","href","page"]);
+  let tags  = byKey(["tags","keywords","series","type"]);
+
+  // If wrong/missing, auto-detect from columns
+  const cols = row.__cols || [];
+
+  if (!name || isUrl(name) || looksLikePrice(name)){
+    // pick the longest non-url text cell
+    let best = "";
+    for (const v of cols){
+      if (!v) continue;
+      if (isUrl(v)) continue;
+      if (looksLikePrice(v)) continue;
+      if (v.length > best.length) best = v;
+    }
+    name = best || name;
+  }
+
+  if (!image || !isImageUrl(image)){
+    for (const v of cols){
+      if (isImageUrl(v)) { image = v; break; }
+    }
+  }
+
+  if (!url || !isUrl(url) || isImageUrl(url)){
+    for (const v of cols){
+      if (isUrl(v) && !isImageUrl(v)) { url = v; break; }
+    }
+  }
+
+  if (!price || !looksLikePrice(price)){
+    for (const v of cols){
+      if (looksLikePrice(v)) { price = v; break; }
+    }
+  }
+  price = cleanPrice(price);
+
+  return { name, price, image, url, tags };
+}
+
 async function loadCatalog(){
   try{
     setState("loading /data/gibson.csv…");
@@ -154,20 +235,13 @@ async function loadCatalog(){
     if (!r.ok) throw new Error("CSV fetch failed: " + r.status);
 
     const text = await r.text();
-    const rows = parseCSV(text);
+    const { rows } = parseCSV(text);
 
-    CATALOG = rows.map(row => {
-      const name  = row.name  || row.title || row.model || row.product || "";
-      const price = row.price || row.msrp  || row.cost  || "";
-      const image = row.image || row.img   || row.photo || row.picture || "";
-      const url   = row.url   || row.link  || row.href  || row.page || "";
-      const tags  = row.tags  || row.keywords || row.series || row.type || "";
-      return { name, price, image, url, tags };
-    }).filter(p => p.name);
+    CATALOG = rows.map(mapRow).filter(p => p.name);
 
     READY = true;
     setState(`ready (${CATALOG.length} guitars)`);
-    render(CATALOG.slice(0, 6), "Catalog loaded. Speak or type a model to filter.");
+    render(CATALOG.slice(0, 6), "Catalog loaded. Type or speak a model to filter.");
   } catch(err){
     READY = false;
     setState("catalog error");
