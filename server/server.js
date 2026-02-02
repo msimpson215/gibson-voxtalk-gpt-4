@@ -1,12 +1,11 @@
 /**
- * Gibson Voice AI Demo — server
- * - Serves static files from /public
- * - Provides GET /token that returns a GA Realtime ephemeral key:
- *     POST https://api.openai.com/v1/realtime/client_secrets
+ * Gibson Voice AI Demo — server (GA Realtime)
+ * - Serves /public
+ * - GET /token returns { value: "ek_..." } using /v1/realtime/client_secrets
  *
  * Env:
  *   OPENAI_API_KEY=sk-...
- *   PORT=3000 (Render sets PORT automatically)
+ *   PORT is set by Render
  */
 
 import express from "express";
@@ -22,87 +21,60 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ---- Static site ----
+// Serve your static Gibson page + assets
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
 
-// Health check (optional)
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-/**
- * GET /token
- * Returns: { value: "ek_..." }
- *
- * This uses GA endpoint: /v1/realtime/client_secrets
- * (NOT /v1/realtime/sessions which is beta)
- */
+// GA ephemeral key for browser WebRTC
 app.get("/token", async (_req, res) => {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({
-        error: "Missing OPENAI_API_KEY in environment.",
-      });
+      return res.status(500).json({ error: "Missing OPENAI_API_KEY." });
     }
-
-    // You can change these defaults to match your client-side model/voice.
-    // Keep it minimal; session can also be updated from the client.
-    const body = {
-      session: {
-        // typical GA usage: voice sessions
-        // (your browser will still call /v1/realtime/calls?model=... for WebRTC)
-        // Put any safe defaults here if you want:
-        // voice: "alloy",
-        // modalities: ["audio", "text"],
-      },
-    };
 
     const resp = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        // IMPORTANT: do NOT send OpenAI-Beta: realtime=v1 for GA calls/models
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        session: {
+          // Keep empty unless you have a specific default.
+          // The browser can still specify model/voice on /v1/realtime/calls
+        },
+      }),
     });
 
     const data = await resp.json();
 
     if (!resp.ok) {
       return res.status(resp.status).json({
-        error: "Failed to create client secret.",
+        error: "Failed to create client secret",
         status: resp.status,
         details: data,
       });
     }
 
-    // OpenAI returns something like:
-    // { client_secret: { value: "ek_...", expires_at: ... }, ... }
     const value = data?.client_secret?.value;
-
     if (!value) {
       return res.status(500).json({
-        error: "No client_secret.value returned from OpenAI.",
+        error: "No client_secret.value returned",
         details: data,
       });
     }
 
     return res.json({ value });
-  } catch (err) {
+  } catch (e) {
     return res.status(500).json({
-      error: "Server error creating client secret.",
-      message: err?.message || String(err),
+      error: "Token server error",
+      message: e?.message || String(e),
     });
   }
 });
 
-// SPA fallback (optional, only if you’re doing client-side routing)
-// app.get("*", (req, res) => {
-//   res.sendFile(path.join(publicDir, "index.html"));
-// });
-
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
