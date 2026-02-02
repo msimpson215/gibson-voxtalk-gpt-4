@@ -1,7 +1,13 @@
-// server/server.js (ESM)
-// Fixes:
-// 1) Serves /public at site root (so /assets and /data work)
-// 2) /token returns a GA client secret from /v1/realtime/client_secrets (fixes api_version_mismatch)
+/**
+ * Gibson Voice AI Demo — server
+ * - Serves static files from /public
+ * - Provides GET /token that returns a GA Realtime ephemeral key:
+ *     POST https://api.openai.com/v1/realtime/client_secrets
+ *
+ * Env:
+ *   OPENAI_API_KEY=sk-...
+ *   PORT=3000 (Render sets PORT automatically)
+ */
 
 import express from "express";
 import path from "path";
@@ -11,75 +17,92 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json());
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve static frontend
-const PUBLIC_DIR = path.join(__dirname, "..", "public");
-app.use(express.static(PUBLIC_DIR, {
-  extensions: ["html"],
-  setHeaders(res) {
-    // avoid caching while debugging
-    res.setHeader("Cache-Control", "no-store");
-  }
-}));
+// ---- Static site ----
+const publicDir = path.join(__dirname, "..", "public");
+app.use(express.static(publicDir));
 
-app.get("/health", (req, res) => res.status(200).send("ok"));
+// Health check (optional)
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
 /**
- * GA Realtime: create an ephemeral client secret for browser use
- * POST https://api.openai.com/v1/realtime/client_secrets
+ * GET /token
+ * Returns: { value: "ek_..." }
+ *
+ * This uses GA endpoint: /v1/realtime/client_secrets
+ * (NOT /v1/realtime/sessions which is beta)
  */
-app.get("/token", async (req, res) => {
+app.get("/token", async (_req, res) => {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ error: "Missing OPENAI_API_KEY in Render env vars" });
+      return res.status(500).json({
+        error: "Missing OPENAI_API_KEY in environment.",
+      });
     }
 
-    const model = process.env.REALTIME_MODEL || "gpt-realtime";
-    const voice = process.env.REALTIME_VOICE || "alloy";
-
+    // You can change these defaults to match your client-side model/voice.
+    // Keep it minimal; session can also be updated from the client.
     const body = {
       session: {
-        type: "realtime",
-        model,
-        audio: {
-          output: { voice }
-        }
-      }
+        // typical GA usage: voice sessions
+        // (your browser will still call /v1/realtime/calls?model=... for WebRTC)
+        // Put any safe defaults here if you want:
+        // voice: "alloy",
+        // modalities: ["audio", "text"],
+      },
     };
 
-    const r = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
+    const resp = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        // IMPORTANT: do NOT send OpenAI-Beta: realtime=v1 for GA calls/models
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
 
-    const data = await r.json();
-    if (!r.ok) {
-      return res.status(r.status).json({ error: "client_secrets failed", details: data });
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      return res.status(resp.status).json({
+        error: "Failed to create client secret.",
+        status: resp.status,
+        details: data,
+      });
     }
 
-    // GA returns { value: "ek_..." , ... }
-    res.json({ value: data.value });
+    // OpenAI returns something like:
+    // { client_secret: { value: "ek_...", expires_at: ... }, ... }
+    const value = data?.client_secret?.value;
+
+    if (!value) {
+      return res.status(500).json({
+        error: "No client_secret.value returned from OpenAI.",
+        details: data,
+      });
+    }
+
+    return res.json({ value });
   } catch (err) {
-    res.status(500).json({ error: "Token error", details: String(err?.message || err) });
+    return res.status(500).json({
+      error: "Server error creating client secret.",
+      message: err?.message || String(err),
+    });
   }
 });
 
-// Serve index explicitly
-app.get("/", (req, res) => {
-  res.sendFile(path.join(PUBLIC_DIR, "index.html"));
-});
+// SPA fallback (optional, only if you’re doing client-side routing)
+// app.get("*", (req, res) => {
+//   res.sendFile(path.join(publicDir, "index.html"));
+// });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
-  console.log(`Serving static from: ${PUBLIC_DIR}`);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
 });
