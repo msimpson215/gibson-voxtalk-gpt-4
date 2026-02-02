@@ -5,7 +5,6 @@
  *
  * Env:
  *   OPENAI_API_KEY=sk-...
- *   PORT is set by Render
  */
 
 import express from "express";
@@ -21,19 +20,20 @@ app.use(express.json());
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve your static Gibson page + assets
+// Serve static site
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
 
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-// GA ephemeral key for browser WebRTC
+/**
+ * GET /token
+ * Returns: { value: "ek_..." }
+ */
 app.get("/token", async (_req, res) => {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "Missing OPENAI_API_KEY." });
-    }
+    if (!apiKey) return res.status(500).json({ error: "Missing OPENAI_API_KEY." });
 
     const resp = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
@@ -43,8 +43,8 @@ app.get("/token", async (_req, res) => {
       },
       body: JSON.stringify({
         session: {
-          // Keep empty unless you have a specific default.
-          // The browser can still specify model/voice on /v1/realtime/calls
+          type: "realtime" // ✅ REQUIRED
+          // You can keep this minimal. Client can set model/voice when starting the call.
         },
       }),
     });
@@ -69,10 +69,7 @@ app.get("/token", async (_req, res) => {
 
     return res.json({ value });
   } catch (e) {
-    return res.status(500).json({
-      error: "Token server error",
-      message: e?.message || String(e),
-    });
+    return res.status(500).json({ error: "Token server error", message: e?.message || String(e) });
   }
 });
 
