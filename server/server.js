@@ -1,4 +1,8 @@
-// server/server.js
+// server/server.js (ESM)
+// Fixes:
+// 1) Serves /public at site root (so /assets and /data work)
+// 2) /token returns a GA client secret from /v1/realtime/client_secrets (fixes api_version_mismatch)
+
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -12,20 +16,22 @@ app.use(express.json({ limit: "2mb" }));
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ✅ This is the critical line: serve /public at site root
+// Serve static frontend
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 app.use(express.static(PUBLIC_DIR, {
   extensions: ["html"],
-  setHeaders(res, filePath) {
-    // stop aggressive caching while debugging
+  setHeaders(res) {
+    // avoid caching while debugging
     res.setHeader("Cache-Control", "no-store");
   }
 }));
 
-// health check
 app.get("/health", (req, res) => res.status(200).send("ok"));
 
-// token endpoint for Realtime ephemeral key
+/**
+ * GA Realtime: create an ephemeral client secret for browser use
+ * POST https://api.openai.com/v1/realtime/client_secrets
+ */
 app.get("/token", async (req, res) => {
   try {
     const apiKey = process.env.OPENAI_API_KEY;
@@ -33,32 +39,41 @@ app.get("/token", async (req, res) => {
       return res.status(500).json({ error: "Missing OPENAI_API_KEY in Render env vars" });
     }
 
-    // Use OpenAI ephemeral session token endpoint
-    const r = await fetch("https://api.openai.com/v1/realtime/sessions", {
+    const model = process.env.REALTIME_MODEL || "gpt-realtime";
+    const voice = process.env.REALTIME_VOICE || "alloy";
+
+    const body = {
+      session: {
+        type: "realtime",
+        model,
+        audio: {
+          output: { voice }
+        }
+      }
+    };
+
+    const r = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        model: process.env.REALTIME_MODEL || "gpt-4o-realtime-preview",
-        voice: process.env.REALTIME_VOICE || "alloy"
-      })
+      body: JSON.stringify(body)
     });
 
     const data = await r.json();
     if (!r.ok) {
-      return res.status(r.status).json({ error: "Realtime session create failed", details: data });
+      return res.status(r.status).json({ error: "client_secrets failed", details: data });
     }
 
-    // Return standard shape used by your frontend
-    res.json({ client_secret: data.client_secret });
+    // GA returns { value: "ek_..." , ... }
+    res.json({ value: data.value });
   } catch (err) {
     res.status(500).json({ error: "Token error", details: String(err?.message || err) });
   }
 });
 
-// Serve the SPA (index.html) for root explicitly
+// Serve index explicitly
 app.get("/", (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });
