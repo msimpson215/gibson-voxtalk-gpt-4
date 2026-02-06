@@ -39,11 +39,11 @@ app.get("/token", async (_req, res) => {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        session: { type: "realtime" },
-      }),
+        session: { type: "realtime" }
+      })
     });
 
     const data = await resp.json();
@@ -52,17 +52,17 @@ app.get("/token", async (_req, res) => {
       return res.status(resp.status).json({
         error: "Failed to create client secret",
         status: resp.status,
-        details: data,
+        details: data
       });
     }
 
-    // ✅ IMPORTANT: API returns the key at top-level `value` (not client_secret.value)
+    // GA can return the key at top-level `value`
     const value = data?.value || data?.client_secret?.value;
 
     if (!value) {
       return res.status(500).json({
         error: "No ephemeral key returned",
-        details: data,
+        details: data
       });
     }
 
@@ -70,7 +70,7 @@ app.get("/token", async (_req, res) => {
   } catch (e) {
     return res.status(500).json({
       error: "Token server error",
-      message: e?.message || String(e),
+      message: e?.message || String(e)
     });
   }
 });
