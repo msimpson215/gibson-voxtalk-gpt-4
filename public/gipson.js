@@ -1,302 +1,395 @@
-// public/gipson.js
-// Hard-diagnostic CSV -> product cards
-// - Works with header CSV OR positional CSV
-// - Forces local image filenames to /assets/<file>
-// - Always shows name/price even if image fails
-// - Logs mapped items and exposes window.CATALOG for debugging
+/* Gibson Voice AI Demo — gipson.js (full file)
+ * - Loads CSV from /data/gibson.csv
+ * - Renders product cards
+ * - Text search filter
+ * - WebRTC Realtime voice using ephemeral key from /token
+ */
 
-const grid = document.getElementById("prodGrid");
-const catalogState = document.getElementById("catalogState");
+(() => {
+  // ====== SETTINGS ======
+  const CSV_URL = "/data/gibson.csv";
 
-let CATALOG = [];
-let READY = false;
+  // ✅ REQUIRED: supply model to Realtime calls
+  const REALTIME_MODEL = "gpt-realtime";
 
-function setState(msg){
-  if (catalogState) catalogState.textContent = msg;
-}
+  // ====== DOM ======
+  const micBtn = document.getElementById("micBtn");
+  const micState = document.getElementById("micState");
+  const micDot = document.getElementById("micDot");
+  const cardsEl = document.getElementById("cards");
+  const logEl = document.getElementById("log");
+  const searchInput = document.getElementById("searchInput");
+  const countLabel = document.getElementById("countLabel");
+  const manualInput = document.getElementById("manualInput");
+  const manualBtn = document.getElementById("manualBtn");
+  const remoteAudio = document.getElementById("remoteAudio");
 
-function log(...args){
-  console.log("[gipson.js]", ...args);
-}
+  // ====== LOG ======
+  function log(...args) {
+    const s = args
+      .map(a => (typeof a === "string" ? a : JSON.stringify(a, null, 2)))
+      .join(" ");
+    logEl.textContent += s + "\n";
+    logEl.scrollTop = logEl.scrollHeight;
+  }
 
-function normalizeKey(s){
-  return (s || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
+  // ====== CSV PARSE ======
+  function parseCSV(text) {
+    // Simple CSV parser with quotes support
+    const rows = [];
+    let row = [];
+    let cur = "";
+    let inQuotes = false;
 
-function csvParseLine(line){
-  const out = [];
-  let cur = "";
-  let inQ = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const next = text[i + 1];
 
-  for (let i = 0; i < line.length; i++){
-    const ch = line[i];
-    if (ch === '"'){
-      if (inQ && line[i+1] === '"'){ cur += '"'; i++; }
-      else inQ = !inQ;
-    } else if (ch === "," && !inQ){
-      out.push(cur);
-      cur = "";
-    } else {
-      cur += ch;
+      if (c === '"' && inQuotes && next === '"') {
+        cur += '"';
+        i++;
+        continue;
+      }
+
+      if (c === '"') {
+        inQuotes = !inQuotes;
+        continue;
+      }
+
+      if (!inQuotes && (c === ",")) {
+        row.push(cur);
+        cur = "";
+        continue;
+      }
+
+      if (!inQuotes && (c === "\n" || c === "\r")) {
+        if (c === "\r" && next === "\n") i++;
+        row.push(cur);
+        cur = "";
+        if (row.length > 1 || (row.length === 1 && row[0].trim() !== "")) rows.push(row);
+        row = [];
+        continue;
+      }
+
+      cur += c;
     }
-  }
-  out.push(cur);
-  return out.map(s => (s ?? "").trim());
-}
 
-function parseCSV(text){
-  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
-  if (lines.length < 2) return { headers: [], rows: [] };
-
-  const headersRaw = csvParseLine(lines[0]);
-  const headers = headersRaw.map(h => normalizeKey(h));
-
-  const rows = [];
-  for (let i = 1; i < lines.length; i++){
-    rows.push(csvParseLine(lines[i]));
-  }
-  return { headers, rows };
-}
-
-function isUrl(s){
-  return /^https?:\/\//i.test(s || "");
-}
-
-function looksLikePrice(s){
-  if (!s) return false;
-  const t = String(s).replace(/[, ]/g, "");
-  return /^\$?\d+(\.\d{2})?$/.test(t) || /\bUSD\b/i.test(s);
-}
-
-function cleanPrice(s){
-  if (!s) return "";
-  const m = String(s).match(/\$?\s*([0-9]{1,3}(?:,[0-9]{3})*|[0-9]+)(\.[0-9]{2})?/);
-  return m ? m[0].replace(/\s+/g, "") : String(s).trim();
-}
-
-function isImageLike(s){
-  return /\.(png|jpg|jpeg|webp|gif)(\?.*)?$/i.test(s || "");
-}
-
-function forceImagePath(img){
-  const v = (img || "").trim();
-  if (!v) return "";
-
-  // full URL
-  if (isUrl(v)) return v;
-
-  // already absolute path
-  if (v.startsWith("/")) return v;
-
-  // relative asset path like assets/foo.jpg
-  if (/^(assets|images|img)\//i.test(v)) return "/" + v;
-
-  // filename like sg-standard.jpg -> /assets/sg-standard.jpg
-  if (isImageLike(v)) return "/assets/" + v;
-
-  // unknown string; return as-is
-  return v;
-}
-
-function pickByHeader(headers, cols, candidates){
-  for (let i=0; i<headers.length; i++){
-    const h = headers[i] || "";
-    for (const c of candidates){
-      if (h.includes(c)) return cols[i] || "";
+    // flush
+    if (cur.length || row.length) {
+      row.push(cur);
+      rows.push(row);
     }
-  }
-  return "";
-}
 
-function mapRow(headers, cols){
-  // 1) Try header-based mapping if headers look real
-  const headerLooksReal = headers.some(h => h.includes("name") || h.includes("price") || h.includes("image") || h.includes("url") || h.includes("link"));
-
-  let name = "";
-  let price = "";
-  let image = "";
-  let url = "";
-
-  if (headerLooksReal){
-    name  = pickByHeader(headers, cols, ["name","title","model","product"]);
-    price = pickByHeader(headers, cols, ["price","msrp","cost","amount"]);
-    image = pickByHeader(headers, cols, ["image","img","photo","picture","thumb"]);
-    url   = pickByHeader(headers, cols, ["url","link","href","page"]);
+    return rows;
   }
 
-  // 2) Fallback auto-detect if missing
-  if (!name){
-    // longest non-url non-price cell
-    let best = "";
-    for (const v of cols){
-      if (!v) continue;
-      if (isUrl(v)) continue;
-      if (looksLikePrice(v)) continue;
-      if (String(v).length > best.length) best = String(v);
+  function normalizeHeader(h) {
+    return String(h || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^a-z0-9_]/g, "");
+  }
+
+  function normalizeUrl(u) {
+    const s = String(u || "").trim();
+    if (!s) return "";
+    if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:image/")) return s;
+    if (s.startsWith("//")) return `https:${s}`;
+    if (s.startsWith("/")) return `https://www.gibson.com${s}`;
+    // if it's a bare filename, assume local assets (kept for backward compatibility)
+    if (/\.(png|jpg|jpeg|webp)$/i.test(s)) return `/assets/${s}`;
+    return s;
+  }
+
+  function money(v) {
+    const s = String(v ?? "").trim();
+    if (!s) return "";
+    const n = Number(s.replace(/[^0-9.]/g, ""));
+    if (!Number.isFinite(n) || n <= 0) return s;
+    return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  }
+
+  // ====== DATA + RENDER ======
+  let catalog = [];
+  let headers = [];
+
+  function pickField(obj, candidates) {
+    for (const k of candidates) {
+      if (obj[k] != null && String(obj[k]).trim() !== "") return obj[k];
     }
-    name = best || (cols[0] || "");
+    return "";
   }
 
-  if (!price){
-    const p = cols.find(v => looksLikePrice(v));
-    price = cleanPrice(p || "");
-  } else {
-    price = cleanPrice(price);
+  function render(list) {
+    cardsEl.innerHTML = "";
+
+    for (const item of list) {
+      const title = pickField(item, ["name", "title", "model", "product", "display_name"]);
+      const sku = pickField(item, ["sku", "product_sku", "item_sku", "id"]);
+      const price = pickField(item, ["price", "msrp", "amount"]);
+      const image = pickField(item, ["image", "image_url", "img", "photo", "photo_url", "thumbnail", "thumb"]);
+      const url = pickField(item, ["url", "product_url", "link", "href"]);
+
+      const aUrl = normalizeUrl(url);
+      const imgUrl = normalizeUrl(image);
+
+      const card = document.createElement("div");
+      card.className = "card";
+
+      const imgWrap = document.createElement("div");
+      imgWrap.className = "cardImg";
+
+      if (imgUrl) {
+        const img = document.createElement("img");
+        img.alt = title || sku || "Guitar";
+        img.loading = "lazy";
+        img.src = imgUrl;
+        imgWrap.appendChild(img);
+      } else {
+        imgWrap.textContent = "No image";
+      }
+
+      const body = document.createElement("div");
+      body.className = "cardBody";
+
+      const h = document.createElement("div");
+      h.className = "title";
+      h.textContent = title || "(untitled)";
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+
+      const left = document.createElement("div");
+      left.textContent = sku ? `SKU: ${sku}` : "SKU: —";
+
+      const right = document.createElement("div");
+      right.textContent = price ? money(price) : "";
+
+      meta.appendChild(left);
+      meta.appendChild(right);
+
+      const link = document.createElement("a");
+      link.className = "a";
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.href = aUrl || "#";
+      link.textContent = aUrl ? "View on Gibson" : "No link";
+
+      body.appendChild(h);
+      body.appendChild(meta);
+      body.appendChild(link);
+
+      card.appendChild(imgWrap);
+      card.appendChild(body);
+
+      cardsEl.appendChild(card);
+    }
+
+    countLabel.textContent = `${list.length} shown / ${catalog.length} total`;
   }
 
-  if (!image){
-    // first image-like cell
-    const imgCell = cols.find(v => isImageLike(v)) || "";
-    image = imgCell;
-  }
-  image = forceImagePath(image);
+  function applyFilter(q) {
+    const s = String(q || "").trim().toLowerCase();
+    if (!s) return render(catalog);
 
-  if (!url){
-    // first non-image URL
-    const u = cols.find(v => isUrl(v) && !isImageLike(v)) || "";
-    url = u;
-  }
+    const filtered = catalog.filter(obj => {
+      // search across all fields
+      return Object.values(obj).some(v => String(v || "").toLowerCase().includes(s));
+    });
 
-  return { name: String(name || "").trim(), price: String(price || "").trim(), image: String(image || "").trim(), url: String(url || "").trim() };
-}
-
-function buildCard(p){
-  const card = document.createElement("div");
-  card.className = "card";
-
-  const thumb = document.createElement("div");
-  thumb.className = "thumb";
-
-  const img = document.createElement("img");
-  img.alt = p.name || "Guitar";
-  img.loading = "lazy";
-  img.referrerPolicy = "no-referrer";
-
-  if (p.image){
-    img.src = p.image;
-  } else {
-    img.style.display = "none";
-    const ph = document.createElement("div");
-    ph.style.padding = "10px";
-    ph.style.opacity = ".9";
-    ph.style.fontWeight = "900";
-    ph.style.textAlign = "center";
-    ph.style.color = "#b8c3df";
-    ph.textContent = "No image (image field empty)";
-    thumb.appendChild(ph);
+    render(filtered);
   }
 
-  img.onerror = () => {
-    img.style.display = "none";
-    const ph = document.createElement("div");
-    ph.style.padding = "10px";
-    ph.style.opacity = ".9";
-    ph.style.fontWeight = "900";
-    ph.style.textAlign = "center";
-    ph.style.color = "#b8c3df";
-    ph.textContent = `Image failed: ${p.image || "(none)"}`;
-    thumb.appendChild(ph);
-  };
-
-  thumb.appendChild(img);
-
-  const meta = document.createElement("div");
-  meta.className = "meta";
-
-  const name = document.createElement("div");
-  name.className = "name";
-  name.textContent = p.name || "(no name)";
-
-  const price = document.createElement("div");
-  price.className = "price";
-  price.textContent = p.price || "(no price found)";
-
-  const link = document.createElement("div");
-  link.className = "link";
-  const a = document.createElement("a");
-  a.href = p.url || "#";
-  a.target = "_blank";
-  a.rel = "noreferrer";
-  a.textContent = p.url ? "View →" : "";
-  link.appendChild(a);
-
-  meta.appendChild(name);
-  meta.appendChild(price);
-  if (p.url) meta.appendChild(link);
-
-  card.appendChild(thumb);
-  card.appendChild(meta);
-  return card;
-}
-
-function render(list, note=""){
-  grid.innerHTML = "";
-  if (!list.length){
-    const d = document.createElement("div");
-    d.style.opacity = "0.92";
-    d.style.padding = "12px";
-    d.innerHTML = `
-      <div style="font-weight:900;margin-bottom:6px">No matches</div>
-      <div style="color:#b8c3df;font-size:13px;line-height:1.35">${note || ""}</div>
-    `;
-    grid.appendChild(d);
-    return;
-  }
-  list.slice(0, 12).forEach(p => grid.appendChild(buildCard(p)));
-}
-
-function extractQuery(raw){
-  let q = (raw || "").trim();
-  q = q.replace(/^show\s+/i, "");
-  q = q.replace(/^find\s+/i, "");
-  return q.trim();
-}
-
-function showProducts(rawQuery){
-  if (!READY) return render([], "Catalog not ready.");
-
-  const q = extractQuery(rawQuery);
-  const term = q.toLowerCase();
-
-  if (!term){
-    return render(CATALOG.slice(0, 8), "Type a model like SG, ES-335, Les Paul Custom.");
-  }
-
-  const res = CATALOG.filter(p => (p.name || "").toLowerCase().includes(term));
-  render(res, `Heard: "${q}"`);
-}
-
-window.showProducts = showProducts;
-
-async function loadCatalog(){
-  try{
-    setState("loading /data/gibson.csv…");
-    const r = await fetch("/data/gibson.csv", { cache: "no-store" });
-    if (!r.ok) throw new Error("CSV fetch failed: " + r.status);
-
+  async function loadCSV() {
+    const r = await fetch(CSV_URL, { cache: "no-store" });
+    if (!r.ok) throw new Error(`CSV load failed: ${r.status}`);
     const text = await r.text();
-    const { headers, rows } = parseCSV(text);
 
-    CATALOG = rows.map(cols => mapRow(headers, cols)).filter(p => p.name);
+    const rows = parseCSV(text);
+    if (!rows.length) throw new Error("CSV empty");
 
-    READY = true;
-    setState(`ready (${CATALOG.length} guitars)`);
-    window.CATALOG = CATALOG; // ✅ so you can type CATALOG in console
+    headers = rows[0].map(normalizeHeader);
+    const dataRows = rows.slice(1);
 
-    log("HEADERS:", headers);
-    log("CSV MAPPED SAMPLE (first 10):", CATALOG.slice(0, 10));
+    const mapped = dataRows
+      .filter(rw => rw.some(cell => String(cell || "").trim() !== ""))
+      .map(rw => {
+        const obj = {};
+        for (let i = 0; i < headers.length; i++) obj[headers[i]] = rw[i] ?? "";
+        return obj;
+      });
 
-    // show a few on load
-    render(CATALOG.slice(0, 6), "Loaded from /data/gibson.csv");
-  } catch (err){
-    READY = false;
-    setState("catalog error");
-    console.error(err);
-    render([], String(err?.message || err));
+    catalog = mapped;
+
+    console.log("[gipson.js] HEADERS:", headers);
+    console.log("[gipson.js] CSV MAPPED SAMPLE (first 10):", catalog.slice(0, 10));
+
+    log(`[CSV] Loaded ${catalog.length} rows`);
+    render(catalog);
   }
-}
 
-loadCatalog();
+  // ====== REALTIME WEBRTC ======
+  let pc = null;
+  let localStream = null;
+  let dataChannel = null;
+
+  function setMicState(state) {
+    // state: "idle" | "live" | "err"
+    micDot.classList.remove("live", "err");
+    if (state === "live") micDot.classList.add("live");
+    if (state === "err") micDot.classList.add("err");
+  }
+
+  async function getEphemeralKey() {
+    const r = await fetch("/token", { cache: "no-store" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error || `Token HTTP ${r.status}`);
+    const key = j?.value;
+    if (!key) throw new Error("No ephemeral key returned from /token");
+    return key;
+  }
+
+  async function startRealtime() {
+    log("[RT] Starting realtime…");
+    console.log("Starting realtime…");
+
+    setMicState("live");
+    micState.textContent = "Listening…";
+
+    try {
+      const ephemeralKey = await getEphemeralKey();
+
+      localStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+
+      pc = new RTCPeerConnection();
+
+      // Send mic track
+      const [track] = localStream.getTracks();
+      console.log("Mic track:", track);
+      pc.addTrack(track, localStream);
+
+      // Receive remote audio
+      pc.ontrack = (event) => {
+        const [stream] = event.streams;
+        if (stream) remoteAudio.srcObject = stream;
+      };
+
+      // Events channel
+      dataChannel = pc.createDataChannel("oai-events");
+      dataChannel.onopen = () => {
+        log("[RT] data channel open");
+
+        // Minimal session update (optional)
+        const msg = {
+          type: "session.update",
+          session: {
+            // voice is already coming back as audio
+            // you can add instructions if you want
+            instructions: "You are a helpful Gibson guitar specialist. Keep it short."
+          }
+        };
+        dataChannel.send(JSON.stringify(msg));
+      };
+
+      dataChannel.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          // Show anything useful, without spamming
+          if (msg.type) log(`[EV] ${msg.type}`);
+          if (msg.type === "response.output_text.delta" && msg.delta) log(msg.delta);
+          if (msg.type === "response.output_text.done" && msg.text) log(msg.text);
+          if (msg.type === "input_audio_buffer.speech_started") log("[RT] speech started");
+          if (msg.type === "input_audio_buffer.speech_stopped") log("[RT] speech stopped");
+        } catch {
+          // ignore non-json
+        }
+      };
+
+      // Create offer
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      // ✅ FIX: include model on the calls endpoint
+      const sdpResp = await fetch(
+        `https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(REALTIME_MODEL)}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${ephemeralKey}`,
+            "Content-Type": "application/sdp"
+          },
+          body: offer.sdp
+        }
+      );
+
+      if (!sdpResp.ok) {
+        const errText = await sdpResp.text().catch(() => "");
+        throw new Error(`Realtime calls failed: ${sdpResp.status} ${errText}`);
+      }
+
+      const answerSdp = await sdpResp.text();
+      await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+
+      log("[RT] Connected.");
+      micState.textContent = "Connected";
+      setMicState("live");
+    } catch (err) {
+      console.error("START ERROR:", err);
+      log("[RT] ERROR:", err?.message || String(err));
+      micState.textContent = "Error";
+      setMicState("err");
+      stopRealtime();
+    }
+  }
+
+  function stopRealtime() {
+    try {
+      if (dataChannel) {
+        dataChannel.close();
+        dataChannel = null;
+      }
+      if (pc) {
+        pc.close();
+        pc = null;
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        localStream = null;
+      }
+    } catch {}
+    micState.textContent = "Click to talk";
+    setMicState("idle");
+  }
+
+  // ====== WIRE UI ======
+  micBtn.addEventListener("click", () => {
+    if (pc) {
+      stopRealtime();
+      log("[RT] Stopped.");
+      return;
+    }
+    startRealtime();
+  });
+
+  searchInput.addEventListener("input", (e) => applyFilter(e.target.value));
+
+  manualBtn.addEventListener("click", () => {
+    const q = manualInput.value || "";
+    log("[MANUAL QUERY]:", q);
+    applyFilter(q);
+  });
+
+  // ====== INIT ======
+  loadCSV().catch(err => {
+    console.error(err);
+    log("[CSV] ERROR:", err?.message || String(err));
+    countLabel.textContent = "CSV load error";
+  });
+})();
