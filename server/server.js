@@ -42,10 +42,7 @@ app.get("/token", async (_req, res) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        session: {
-          type: "realtime" // ✅ REQUIRED
-          // You can keep this minimal. Client can set model/voice when starting the call.
-        },
+        session: { type: "realtime" },
       }),
     });
 
@@ -59,17 +56,22 @@ app.get("/token", async (_req, res) => {
       });
     }
 
-    const value = data?.client_secret?.value;
+    // ✅ IMPORTANT: API returns the key at top-level `value` (not client_secret.value)
+    const value = data?.value || data?.client_secret?.value;
+
     if (!value) {
       return res.status(500).json({
-        error: "No client_secret.value returned",
+        error: "No ephemeral key returned",
         details: data,
       });
     }
 
     return res.json({ value });
   } catch (e) {
-    return res.status(500).json({ error: "Token server error", message: e?.message || String(e) });
+    return res.status(500).json({
+      error: "Token server error",
+      message: e?.message || String(e),
+    });
   }
 });
 
