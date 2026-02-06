@@ -1,55 +1,24 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Gibson Voice AI Demo</title>
-  <link rel="stylesheet" href="/style.css" />
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Gibson Voice AI Demo</title>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">Gibson</div>
-      <div class="sub">Voice AI Demo</div>
-    </div>
 
-    <div class="controls">
-      <button id="micBtn" class="btn">
-        <span class="dot" id="micDot"></span>
-        <span id="micState">Click to talk</span>
-      </button>
+<h1>Gibson Voice AI Demo</h1>
 
-      <input id="searchInput" class="input" placeholder="Search (SG, Les Paul, SKU, color...)" />
-    </div>
-  </header>
+<button id="micBtn">Click to talk</button>
+<input id="searchInput" placeholder="Search (SG, Les Paul, SKU)"/>
 
-  <main class="wrap">
-    <section class="panel">
-      <div class="panelHead">
-        <div class="h">Products</div>
-        <div class="muted" id="countLabel">Loading…</div>
-      </div>
+<h2>Products</h2>
+<div id="countLabel"></div>
+<div id="cards"></div>
 
-      <div id="cards" class="cards"></div>
-    </section>
+<pre id="log"></pre>
+<audio id="remoteAudio" autoplay></audio>
 
-    <section class="panel">
-      <div class="panelHead">
-        <div class="h">Log</div>
-        <div class="muted">Realtime / CSV</div>
-      </div>
-
-      <div class="row">
-        <input id="manualInput" class="input" placeholder="Manual query (optional): e.g., show me an SG" />
-        <button id="manualBtn" class="btn secondary">Run</button>
-      </div>
-
-      <pre id="log" class="log"></pre>
-    </section>
-  </main>
-
-  <audio id="remoteAudio" autoplay></audio>
-
-  <script src="/gipson.js"></script>
+<script src="/gipson.js"></script>
 </body>
 </html>
