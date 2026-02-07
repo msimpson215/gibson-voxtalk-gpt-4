@@ -1,6 +1,5 @@
 (() => {
   const CSV_URL = "/data/gibson.csv";
-  const REALTIME_MODEL = "gpt-4o-realtime-preview";
 
   const cardsEl = document.getElementById("cards");
   const countLabel = document.getElementById("countLabel");
@@ -8,7 +7,6 @@
   const micBtn = document.getElementById("micBtn");
   const micState = document.getElementById("micState");
   const searchInput = document.getElementById("searchInput");
-  const remoteAudio = document.getElementById("remoteAudio");
 
   function log(msg) {
     if (logEl) {
@@ -62,35 +60,25 @@
     return s;
   }
 
-  function shouldProxyImageUrl(u) {
-    try {
-      const url = new URL(u);
-      const host = url.hostname.toLowerCase();
-      return (
-        host.endsWith("gibson.com") ||
-        host.endsWith("cdn.shopify.com") ||
-        host.endsWith("shopify.com")
-      );
-    } catch {
-      return false;
-    }
+  function proxiedImageUrl(raw) {
+    const u = normalizeUrl(raw);
+    return u ? `/img?url=${encodeURIComponent(u)}` : "";
   }
 
-  // CSV mapping:
-  // 0 URL, 1 main image, 2 name, 3 vendor, 10 color, 11 price
+  // Your scrape layout matches:
+  // 0 = product url
+  // 1 = big image url (cdn.shopify…)
+  // 2 = title
+  // 3 = vendor
+  // 10 = color / variant
+  // 11 = price
   function mapRow(r) {
     const url = normalizeUrl(r[0]);
-
-    const rawImg = normalizeUrl(r[1] || r[4] || r[6] || r[8]);
-    const img = rawImg
-      ? (shouldProxyImageUrl(rawImg) ? `/img?url=${encodeURIComponent(rawImg)}` : rawImg)
-      : "";
-
+    const img = proxiedImageUrl(r[1] || r[4] || r[6] || r[8]);
     const name = String(r[2] || "").trim();
     const vendor = String(r[3] || "").trim();
     const color = String(r[10] || "").trim();
     const price = String(r[11] || "").trim();
-
     const blob = [name, vendor, color, price, url].join(" ").toLowerCase();
     return { url, img, name, vendor, color, price, blob };
   }
@@ -107,11 +95,11 @@
     for (const p of list) {
       const card = document.createElement("div");
       card.style.cssText =
-        "border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;background:rgba(2,6,23,.55);";
+        "border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.06);";
 
       const top = document.createElement("div");
       top.style.cssText =
-        "height:160px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;overflow:hidden;";
+        "height:160px;background:rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;overflow:hidden;";
 
       if (p.img) {
         const img = document.createElement("img");
@@ -123,12 +111,12 @@
         top.appendChild(img);
       } else {
         top.textContent = "No image";
-        top.style.cssText += "color:rgba(229,231,235,.6);font:13px system-ui;";
+        top.style.cssText += "color:rgba(255,255,255,.6);font:12px system-ui;";
       }
 
       const body = document.createElement("div");
       body.style.cssText =
-        "padding:10px 12px;font:14px system-ui;color:rgba(229,231,235,.92);display:flex;flex-direction:column;gap:6px;";
+        "padding:10px 12px;font:14px system-ui;color:rgba(255,255,255,.92);display:flex;flex-direction:column;gap:6px;";
 
       const title = document.createElement("div");
       title.style.cssText = "font-weight:800;line-height:1.2;";
@@ -136,7 +124,7 @@
 
       const meta = document.createElement("div");
       meta.style.cssText =
-        "display:flex;justify-content:space-between;gap:10px;color:rgba(229,231,235,.65);font-size:12px;";
+        "display:flex;justify-content:space-between;gap:10px;color:rgba(255,255,255,.65);font-size:12px;";
       meta.innerHTML = `<span>${p.vendor || ""}${p.color ? " • " + p.color : ""}</span><span>${p.price || ""}</span>`;
 
       const link = document.createElement("a");
@@ -145,7 +133,7 @@
       link.rel = "noopener";
       link.textContent = p.url ? "View on Gibson" : "No link";
       link.style.cssText =
-        "margin-top:6px;text-decoration:none;display:inline-flex;justify-content:center;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.14);color:rgba(229,231,235,.92);background:rgba(17,24,39,.55);";
+        "margin-top:6px;text-decoration:none;display:inline-flex;justify-content:center;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.92);background:rgba(0,0,0,.25);";
       if (!p.url) link.onclick = (e) => e.preventDefault();
 
       body.appendChild(title);
@@ -154,6 +142,7 @@
 
       card.appendChild(top);
       card.appendChild(body);
+
       grid.appendChild(card);
     }
 
@@ -166,7 +155,7 @@
     s = s.replace(/[^\w\s'-]/g, " ");
     s = s.replace(/\s+/g, " ").trim();
 
-    const stop = new Set(["gibson", "guitar", "guitars", "show", "me", "a", "an", "the", "please"]);
+    const stop = new Set(["gibson","guitar","guitars","show","me","a","an","the","please"]);
     const parts = s.split(" ").filter(w => !stop.has(w.toLowerCase()));
     return parts.join(" ").trim() || s.trim();
   }
@@ -196,7 +185,7 @@
     render(catalog);
   }
 
-  // ===== SPEECH-TO-TEXT (for filtering) =====
+  // Speech-to-text filter (English only)
   let recog = null;
 
   function startSpeechToText() {
@@ -212,106 +201,24 @@
     recog.interimResults = false;
     recog.maxAlternatives = 1;
 
-    recog.onstart = () => log("Speech: listening…");
-    recog.onerror = (e) => log("Speech error: " + (e?.error || "unknown"));
+    recog.onstart = () => { if (micState) micState.textContent = "Listening…"; };
+    recog.onerror = (e) => {
+      log("Speech error: " + (e?.error || "unknown"));
+      if (micState) micState.textContent = "Click to talk";
+    };
     recog.onresult = (e) => {
       const txt = e?.results?.[0]?.[0]?.transcript || "";
-      log("SPEECH TEXT: " + txt);
+      log("SPEECH: " + txt);
       applyFilter(txt);
+      if (micState) micState.textContent = "Click to talk";
     };
-    recog.onend = () => log("Speech: stopped");
+    recog.onend = () => { if (micState) micState.textContent = "Click to talk"; };
 
     recog.start();
   }
 
-  // ===== REALTIME (voice personality) =====
-  let pc = null;
-  let stream = null;
-  let dc = null;
-
-  async function getKey() {
-    const r = await fetch("/token", { cache: "no-store" });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j?.error || `Token HTTP ${r.status}`);
-    if (!j.value) throw new Error("No ephemeral key returned from /token");
-    return j.value;
-  }
-
-  function stopRealtime() {
-    try { if (dc) dc.close(); } catch {}
-    try { if (pc) pc.close(); } catch {}
-    try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
-    dc = null; pc = null; stream = null;
-  }
-
-  async function startRealtime() {
-    stopRealtime();
-    log("Starting realtime…");
-    if (micState) micState.textContent = "Listening…";
-
-    try {
-      const key = await getKey();
-
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-      });
-
-      pc = new RTCPeerConnection();
-      pc.addTrack(stream.getTracks()[0], stream);
-
-      pc.ontrack = (e) => {
-        const s = e.streams && e.streams[0];
-        if (s && remoteAudio) remoteAudio.srcObject = s;
-      };
-
-      dc = pc.createDataChannel("oai-events");
-
-      dc.onopen = () => {
-        dc.send(JSON.stringify({
-          type: "session.update",
-          session: {
-            instructions:
-              "You are a friendly English-only guitar specialist. No Spanish."
-          }
-        }));
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      const sdpResp = await fetch(
-        `https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(REALTIME_MODEL)}`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/sdp" },
-          body: offer.sdp
-        }
-      );
-
-      if (!sdpResp.ok) {
-        const t = await sdpResp.text().catch(() => "");
-        throw new Error(`Realtime calls failed: ${sdpResp.status} ${t}`);
-      }
-
-      const answer = await sdpResp.text();
-      await pc.setRemoteDescription({ type: "answer", sdp: answer });
-
-      log("Connected.");
-      if (micState) micState.textContent = "Connected";
-    } catch (err) {
-      log("ERROR: " + (err?.message || String(err)));
-      stopRealtime();
-      if (micState) micState.textContent = "Click to talk";
-    }
-  }
-
-  async function startAll() {
-    startSpeechToText();   // this makes the FILTER happen every time
-    await startRealtime(); // this keeps the “she talks back” vibe
-  }
-
   if (searchInput) searchInput.addEventListener("input", (e) => applyFilter(e.target.value));
-  if (micBtn) micBtn.addEventListener("click", startAll);
+  if (micBtn) micBtn.addEventListener("click", startSpeechToText);
 
   loadCSV().catch(err => log("CSV ERROR: " + (err?.message || String(err))));
 })();
