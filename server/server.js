@@ -12,8 +12,7 @@ const PORT = process.env.PORT || 3000;
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// IMPORTANT: use a REAL realtime model name.
-// This exact model style is referenced in OpenAI Realtime errors/docs. :contentReference[oaicite:1]{index=1}
+// IMPORTANT: realtime model
 const REALTIME_MODEL = process.env.REALTIME_MODEL || "gpt-4o-realtime-preview";
 
 // Serve /public
@@ -29,11 +28,12 @@ app.get("/token", async (req, res) => {
       return res.status(500).json({ error: "Missing OPENAI_API_KEY on server" });
     }
 
+    // FIX: output_modalities must be ONLY ['audio'] OR ONLY ['text']
     const payload = {
       session: {
         type: "realtime",
         model: REALTIME_MODEL,
-        output_modalities: ["audio", "text"],
+        output_modalities: ["audio"],
       },
     };
 
@@ -49,7 +49,6 @@ app.get("/token", async (req, res) => {
     const j = await r.json().catch(() => ({}));
 
     if (!r.ok) {
-      // Pass through the REAL error so you can see it in /token
       return res.status(r.status).json({
         error: "Failed to create client secret",
         status: r.status,
@@ -75,7 +74,7 @@ app.get("/token", async (req, res) => {
   }
 });
 
-// --- Image proxy (keeps Gibson CDN images from being blank) ---
+// --- Image proxy ---
 function isAllowedImageUrl(u) {
   try {
     const url = new URL(u);
