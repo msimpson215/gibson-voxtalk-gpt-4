@@ -3,154 +3,61 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Gibson Voice AI Demo</title>
-
-  <!-- No external CSS file. No MIME errors. -->
+  <title>Gibson Voice Demo</title>
   <style>
     :root{
-      --bg:#0b0f17;
-      --panel:#0f172a;
-      --line:rgba(255,255,255,.10);
-      --txt:#e5e7eb;
-      --muted:rgba(229,231,235,.65);
-      --btn:rgba(17,24,39,.75);
+      --bg:#070b12;
+      --panel:rgba(255,255,255,.06);
+      --line:rgba(255,255,255,.12);
+      --text:rgba(255,255,255,.92);
+      --muted:rgba(255,255,255,.62);
     }
     *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background: var(--bg);
-      color: var(--txt);
-    }
-    .topbar{
-      position:sticky; top:0;
-      display:flex; align-items:center; justify-content:space-between;
-      gap:14px;
-      padding:14px 16px;
-      border-bottom:1px solid var(--line);
-      background: rgba(11,15,23,.92);
-      backdrop-filter: blur(10px);
-      z-index:10;
-    }
-    .brand{display:flex; flex-direction:column; gap:2px}
-    .logo{font-weight:900; letter-spacing:.4px; font-size:20px}
-    .sub{color:var(--muted); font-size:12px}
-    .controls{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-    .btn{
-      border:1px solid var(--line);
-      background: var(--btn);
-      color: var(--txt);
-      border-radius:12px;
-      padding:10px 12px;
-      cursor:pointer;
-      display:flex; align-items:center; gap:10px;
-      white-space:nowrap;
-    }
-    .dot{
-      width:10px; height:10px; border-radius:50%;
-      background: rgba(255,255,255,.35);
-      display:inline-block;
-    }
-    .input{
-      min-width: 280px;
-      width: min(520px, 70vw);
-      padding:10px 12px;
-      border-radius:12px;
-      border:1px solid var(--line);
-      background: rgba(2,6,23,.60);
-      color: var(--txt);
-      outline:none;
-    }
-    .wrap{
-      max-width: 1200px;
-      margin: 16px auto;
-      padding: 0 14px 24px;
-      display:grid;
-      grid-template-columns: 2fr 1fr;
-      gap:14px;
-    }
-    @media (max-width: 980px){
-      .wrap{grid-template-columns:1fr}
-      .input{width:100%}
-    }
-    .panel{
-      border:1px solid var(--line);
-      border-radius:16px;
-      overflow:hidden;
-      background: rgba(15,23,42,.55);
-    }
-    .panelHead{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:12px 14px;
-      border-bottom:1px solid var(--line);
-    }
-    .h{font-weight:800}
-    .muted{color:var(--muted); font-size:12px}
-    #cards{
-      padding: 12px;
-      min-height: 280px;
-    }
-    #log{
-      margin:0;
-      padding:12px 14px;
-      min-height:260px;
-      max-height:520px;
-      overflow:auto;
-      font-size:12px;
-      color: rgba(229,231,235,.85);
-      background: rgba(2,6,23,.35);
-      white-space:pre-wrap;
-    }
-    .hint{
-      padding: 10px 14px;
-      border-top:1px solid var(--line);
-      color: var(--muted);
-      font-size:12px;
-    }
+    body{margin:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,Segoe UI,Arial}
+    header{position:sticky;top:0;z-index:5;background:rgba(7,11,18,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+    .wrap{max-width:1100px;margin:0 auto;padding:14px 16px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .brand{font-weight:900;letter-spacing:.08em}
+    .pill{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:10px 12px;color:var(--text)}
+    input.pill{min-width:260px;outline:none}
+    button.pill{cursor:pointer}
+    button.pill:active{transform:translateY(1px)}
+    main{max-width:1100px;margin:0 auto;padding:18px 16px 44px}
+    .hero{border:1px solid var(--line);background:var(--panel);border-radius:18px;padding:14px 14px;margin-bottom:14px}
+    .hero b{display:block;font-size:16px;margin-bottom:6px}
+    #log{white-space:pre-wrap;color:var(--muted);font-size:12px;margin-top:8px}
+    #cards{margin-top:12px}
+    #countLabel{color:var(--muted);margin-left:auto}
   </style>
 </head>
 
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <div class="logo">Gibson</div>
-      <div class="sub">Voice AI Demo</div>
-    </div>
+  <header>
+    <div class="wrap">
+      <div class="row">
+        <div class="brand">GIBSON</div>
 
-    <div class="controls">
-      <button id="micBtn" class="btn">
-        <span class="dot" id="micDot"></span>
-        <span id="micState">Click to talk</span>
-      </button>
+        <input id="searchInput" class="pill" placeholder="Type to filter (or use mic)" />
 
-      <input id="searchInput" class="input" placeholder="Search (SG, Les Paul, Explorer, color, price…)" />
+        <button id="micBtn" class="pill">🎤 <span id="micState">Click to talk</span></button>
+
+        <div id="countLabel"></div>
+      </div>
     </div>
   </header>
 
-  <main class="wrap">
-    <section class="panel">
-      <div class="panelHead">
-        <div class="h">Products</div>
-        <div class="muted" id="countLabel">Loading…</div>
-      </div>
-      <div id="cards"></div>
-      <div class="hint">Tip: type to filter instantly. Voice will filter after it hears you.</div>
-    </section>
+  <main>
+    <div class="hero">
+      <b>Voice Search (works without OpenAI)</b>
+      Speak: “SG Standard”, “Explorer 80s”, “Pelham Blue”, “ES-335”, etc.
+      <div id="log"></div>
+    </div>
 
-    <section class="panel">
-      <div class="panelHead">
-        <div class="h">Log</div>
-        <div class="muted">Realtime + CSV</div>
-      </div>
-      <pre id="log"></pre>
-      <div class="hint">If anything fails, the first red error in DevTools Console is the only thing we need.</div>
-    </section>
+    <div id="cards"></div>
+
+    <audio id="remoteAudio" autoplay></audio>
   </main>
 
-  <audio id="remoteAudio" autoplay></audio>
-
-  <!-- Your existing JS -->
   <script src="/gipson.js"></script>
 </body>
 </html>
