@@ -1,7 +1,5 @@
 (() => {
   const CSV_URL = "/data/gibson.csv";
-
-  // MUST match the model used for the call URL.
   const REALTIME_MODEL = "gpt-4o-realtime-preview";
 
   const cardsEl = document.getElementById("cards");
@@ -78,15 +76,14 @@
     }
   }
 
+  // CSV mapping:
   // 0 URL, 1 main image, 2 name, 3 vendor, 10 color, 11 price
   function mapRow(r) {
     const url = normalizeUrl(r[0]);
 
     const rawImg = normalizeUrl(r[1] || r[4] || r[6] || r[8]);
     const img = rawImg
-      ? (shouldProxyImageUrl(rawImg)
-          ? `/img?url=${encodeURIComponent(rawImg)}`
-          : rawImg)
+      ? (shouldProxyImageUrl(rawImg) ? `/img?url=${encodeURIComponent(rawImg)}` : rawImg)
       : "";
 
     const name = String(r[2] || "").trim();
@@ -121,13 +118,12 @@
         img.src = p.img;
         img.alt = p.name || "Guitar";
         img.loading = "lazy";
-        img.style.cssText =
-          "width:100%;height:100%;object-fit:cover;display:block;";
+        img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+        img.onerror = () => log(`IMG FAIL: ${p.img}`);
         top.appendChild(img);
       } else {
         top.textContent = "No image";
-        top.style.cssText +=
-          "color:rgba(229,231,235,.6);font:13px system-ui;";
+        top.style.cssText += "color:rgba(229,231,235,.6);font:13px system-ui;";
       }
 
       const body = document.createElement("div");
@@ -167,20 +163,10 @@
 
   function cleanQuery(q) {
     let s = String(q || "").trim();
-
-    if (s.startsWith("{") && s.endsWith("}")) {
-      try {
-        const obj = JSON.parse(s);
-        if (obj && typeof obj.query === "string") s = obj.query;
-      } catch {}
-    }
-
     s = s.replace(/[^\w\s'-]/g, " ");
     s = s.replace(/\s+/g, " ").trim();
 
-    const stop = new Set([
-      "gibson", "guitar", "guitars", "show", "me", "a", "an", "the", "please"
-    ]);
+    const stop = new Set(["gibson", "guitar", "guitars", "show", "me", "a", "an", "the", "please"]);
     const parts = s.split(" ").filter(w => !stop.has(w.toLowerCase()));
     return parts.join(" ").trim() || s.trim();
   }
@@ -210,7 +196,35 @@
     render(catalog);
   }
 
-  // ===== REALTIME =====
+  // ===== SPEECH-TO-TEXT (for filtering) =====
+  let recog = null;
+
+  function startSpeechToText() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      log("SpeechRecognition not available in this browser.");
+      return;
+    }
+
+    try { if (recog) recog.stop(); } catch {}
+    recog = new SR();
+    recog.lang = "en-US";
+    recog.interimResults = false;
+    recog.maxAlternatives = 1;
+
+    recog.onstart = () => log("Speech: listening…");
+    recog.onerror = (e) => log("Speech error: " + (e?.error || "unknown"));
+    recog.onresult = (e) => {
+      const txt = e?.results?.[0]?.[0]?.transcript || "";
+      log("SPEECH TEXT: " + txt);
+      applyFilter(txt);
+    };
+    recog.onend = () => log("Speech: stopped");
+
+    recog.start();
+  }
+
+  // ===== REALTIME (voice personality) =====
   let pc = null;
   let stream = null;
   let dc = null;
@@ -228,7 +242,6 @@
     try { if (pc) pc.close(); } catch {}
     try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
     dc = null; pc = null; stream = null;
-    if (micState) micState.textContent = "Click to talk";
   }
 
   async function startRealtime() {
@@ -258,25 +271,9 @@
           type: "session.update",
           session: {
             instructions:
-              "Return ONLY a short ENGLISH search phrase (2 to 6 words). " +
-              "No Spanish. No JSON. No explanation."
+              "You are a friendly English-only guitar specialist. No Spanish."
           }
         }));
-
-        dc.send(JSON.stringify({
-          type: "response.create",
-          response: { modalities: ["text"] }
-        }));
-      };
-
-      dc.onmessage = (e) => {
-        let m;
-        try { m = JSON.parse(e.data); } catch { return; }
-
-        if (m.type === "response.output_text.done" && m.text) {
-          log("VOICE QUERY: " + m.text);
-          applyFilter(m.text);
-        }
       };
 
       const offer = await pc.createOffer();
@@ -304,11 +301,17 @@
     } catch (err) {
       log("ERROR: " + (err?.message || String(err)));
       stopRealtime();
+      if (micState) micState.textContent = "Click to talk";
     }
   }
 
+  async function startAll() {
+    startSpeechToText();   // this makes the FILTER happen every time
+    await startRealtime(); // this keeps the “she talks back” vibe
+  }
+
   if (searchInput) searchInput.addEventListener("input", (e) => applyFilter(e.target.value));
-  if (micBtn) micBtn.addEventListener("click", startRealtime);
+  if (micBtn) micBtn.addEventListener("click", startAll);
 
   loadCSV().catch(err => log("CSV ERROR: " + (err?.message || String(err))));
 })();
