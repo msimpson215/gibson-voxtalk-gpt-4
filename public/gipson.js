@@ -62,15 +62,37 @@
     return s;
   }
 
-  // Your CSV mapping
-  // 0 URL, 1 main image, 2 name, 3 vendor, 10 color, 11 price
+  function shouldProxyImageUrl(u) {
+    try {
+      const url = new URL(u);
+      const host = url.hostname.toLowerCase();
+      return (
+        host.endsWith("gibson.com") ||
+        host.endsWith("cdn.shopify.com") ||
+        host.endsWith("shopify.com")
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  // CSV mapping (based on your scrape headers)
+  // 0 URL, 1 main image, 2 name, 3 vendor, 10 color/variant, 11 price
   function mapRow(r) {
     const url = normalizeUrl(r[0]);
-    const img = normalizeUrl(r[1] || r[4] || r[6] || r[8]);
+
+    const rawImg = normalizeUrl(r[1] || r[4] || r[6] || r[8]);
+    const img = rawImg
+      ? (shouldProxyImageUrl(rawImg)
+          ? `/img?url=${encodeURIComponent(rawImg)}`
+          : rawImg)
+      : "";
+
     const name = String(r[2] || "").trim();
     const vendor = String(r[3] || "").trim();
     const color = String(r[10] || "").trim();
     const price = String(r[11] || "").trim();
+
     const blob = [name, vendor, color, price, url].join(" ").toLowerCase();
     return { url, img, name, vendor, color, price, blob };
   }
@@ -78,11 +100,11 @@
   let catalog = [];
 
   function render(list) {
-    if (!cardsEl) return;
     cardsEl.innerHTML = "";
 
     const grid = document.createElement("div");
-    grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;";
+    grid.style.cssText =
+      "display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;";
 
     for (const p of list) {
       const card = document.createElement("div");
@@ -98,11 +120,13 @@
         img.src = p.img;
         img.alt = p.name || "Guitar";
         img.loading = "lazy";
-        img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+        img.style.cssText =
+          "width:100%;height:100%;object-fit:cover;display:block;";
         top.appendChild(img);
       } else {
         top.textContent = "No image";
-        top.style.cssText += "color:rgba(229,231,235,.6);font:13px system-ui;";
+        top.style.cssText +=
+          "color:rgba(229,231,235,.6);font:13px system-ui;";
       }
 
       const body = document.createElement("div");
@@ -143,7 +167,7 @@
   function cleanQuery(q) {
     let s = String(q || "").trim();
 
-    // If JSON, extract .query
+    // Extract .query if model returns JSON
     if (s.startsWith("{") && s.endsWith("}")) {
       try {
         const obj = JSON.parse(s);
@@ -154,8 +178,10 @@
     s = s.replace(/[^\w\s'-]/g, " ");
     s = s.replace(/\s+/g, " ").trim();
 
-    // Strip junk words
-    const stop = new Set(["gibson", "guitar", "guitars", "show", "me", "a", "an", "the", "please"]);
+    // remove common fluff that hurts matching
+    const stop = new Set([
+      "gibson", "guitar", "guitars", "show", "me", "a", "an", "the", "please"
+    ]);
     const parts = s.split(" ").filter(w => !stop.has(w.toLowerCase()));
     return parts.join(" ").trim() || s.trim();
   }
@@ -190,21 +216,6 @@
   let stream = null;
   let dc = null;
 
-  let lastTextSeen = "";
-  let fallbackTimer = null;
-
-  function setFallbackTimer() {
-    clearTimeout(fallbackTimer);
-    fallbackTimer = setTimeout(() => {
-      if (lastTextSeen) {
-        log("FALLBACK USING LAST TEXT: " + lastTextSeen);
-        applyFilter(lastTextSeen);
-      } else {
-        log("FALLBACK: no text received");
-      }
-    }, 6000);
-  }
-
   async function getKey() {
     const r = await fetch("/token", { cache: "no-store" });
     const j = await r.json().catch(() => ({}));
@@ -214,10 +225,6 @@
   }
 
   function stopRealtime() {
-    clearTimeout(fallbackTimer);
-    fallbackTimer = null;
-    lastTextSeen = "";
-
     try { if (dc) dc.close(); } catch {}
     try { if (pc) pc.close(); } catch {}
     try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
@@ -248,59 +255,32 @@
       dc = pc.createDataChannel("oai-events");
 
       dc.onopen = () => {
-        // Strong instruction: return only a short phrase.
+        // Tell the model what we want: a SHORT phrase to filter the list.
         dc.send(JSON.stringify({
           type: "session.update",
           session: {
             instructions:
               "Return ONLY a short ENGLISH search phrase (2 to 6 words). " +
-              "No Spanish. No JSON. No explanations. No punctuation. " +
-              "Examples: SG Standard, Les Paul Custom, Pelham Blue, Explorer 80s."
+              "No Spanish. No JSON. No explanation. No punctuation. " +
+              "Examples: SG Standard, Pelham Blue, Les Paul Custom, Explorer 80s."
           }
         }));
 
-        // IMPORTANT: explicitly request a response now
+        // Request a single text response for the user's speech
         dc.send(JSON.stringify({
           type: "response.create",
           response: { modalities: ["text"] }
         }));
-
-        setFallbackTimer();
       };
 
       dc.onmessage = (e) => {
         let m;
         try { m = JSON.parse(e.data); } catch { return; }
 
-        // We accept text from multiple event types
-        // depending on API/SDK variations.
-        const maybeText =
-          m.text ||
-          m.delta ||
-          m.output_text ||
-          (m.response && m.response.output_text) ||
-          (m.response && m.response.text) ||
-          "";
-
-        // Track any text we see
-        if (typeof maybeText === "string" && maybeText.trim()) {
-          lastTextSeen = maybeText.trim();
-        }
-
-        // Apply filter on any "done"/"completed" event we can catch
-        const type = String(m.type || "");
-        if (
-          type === "response.output_text.done" ||
-          type === "response.completed" ||
-          type === "response.done" ||
-          type.endsWith(".done") ||
-          type.endsWith(".completed")
-        ) {
-          if (lastTextSeen) {
-            log("VOICE TEXT: " + lastTextSeen);
-            applyFilter(lastTextSeen);
-            clearTimeout(fallbackTimer);
-          }
+        // Accept text from common event types
+        if (m.type === "response.output_text.done" && m.text) {
+          log("VOICE QUERY: " + m.text);
+          applyFilter(m.text);
         }
       };
 
