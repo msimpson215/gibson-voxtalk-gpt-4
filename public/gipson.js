@@ -62,13 +62,8 @@
     return s;
   }
 
-  // Your CSV mapping (from the header you pasted)
-  // 0 = product URL
-  // 1 = main image (large)
-  // 2 = product name
-  // 3 = vendor
-  // 10 = color/variant
-  // 11 = price
+  // Your CSV mapping
+  // 0 URL, 1 main image, 2 name, 3 vendor, 10 color, 11 price
   function mapRow(r) {
     const url = normalizeUrl(r[0]);
     const img = normalizeUrl(r[1] || r[4] || r[6] || r[8]);
@@ -76,16 +71,15 @@
     const vendor = String(r[3] || "").trim();
     const color = String(r[10] || "").trim();
     const price = String(r[11] || "").trim();
-
-    // searchable blob
     const blob = [name, vendor, color, price, url].join(" ").toLowerCase();
-
     return { url, img, name, vendor, color, price, blob };
   }
 
   let catalog = [];
 
   function render(list) {
+    if (!cardsEl) return;
+
     cardsEl.innerHTML = "";
 
     const grid = document.createElement("div");
@@ -97,7 +91,8 @@
         "border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;background:rgba(2,6,23,.55);";
 
       const top = document.createElement("div");
-      top.style.cssText = "height:160px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;overflow:hidden;";
+      top.style.cssText =
+        "height:160px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;overflow:hidden;";
 
       if (p.img) {
         const img = document.createElement("img");
@@ -112,14 +107,16 @@
       }
 
       const body = document.createElement("div");
-      body.style.cssText = "padding:10px 12px;font:14px system-ui;color:rgba(229,231,235,.92);display:flex;flex-direction:column;gap:6px;";
+      body.style.cssText =
+        "padding:10px 12px;font:14px system-ui;color:rgba(229,231,235,.92);display:flex;flex-direction:column;gap:6px;";
 
       const title = document.createElement("div");
       title.style.cssText = "font-weight:800;line-height:1.2;";
       title.textContent = p.name || "(untitled)";
 
       const meta = document.createElement("div");
-      meta.style.cssText = "display:flex;justify-content:space-between;gap:10px;color:rgba(229,231,235,.65);font-size:12px;";
+      meta.style.cssText =
+        "display:flex;justify-content:space-between;gap:10px;color:rgba(229,231,235,.65);font-size:12px;";
       meta.innerHTML = `<span>${p.vendor || ""}${p.color ? " • " + p.color : ""}</span><span>${p.price || ""}</span>`;
 
       const link = document.createElement("a");
@@ -137,7 +134,6 @@
 
       card.appendChild(top);
       card.appendChild(body);
-
       grid.appendChild(card);
     }
 
@@ -145,10 +141,39 @@
     if (countLabel) countLabel.textContent = `${list.length} shown / ${catalog.length} total`;
   }
 
+  function cleanQuery(q) {
+    let s = String(q || "").trim();
+
+    // If the model returns JSON, extract .query
+    if (s.startsWith("{") && s.endsWith("}")) {
+      try {
+        const obj = JSON.parse(s);
+        if (obj && typeof obj.query === "string") s = obj.query;
+      } catch {}
+    }
+
+    // Remove quotes / punctuation noise
+    s = s.replace(/^"+|"+$/g, "");
+    s = s.replace(/[^\w\s'-]/g, " ");
+    s = s.replace(/\s+/g, " ").trim();
+
+    // Strip common junk words that hurt matching
+    const stop = new Set(["gibson", "guitar", "guitars", "show", "me", "a", "an", "the"]);
+    const parts = s.split(" ").filter(w => !stop.has(w.toLowerCase()));
+    return parts.join(" ").trim() || s.trim();
+  }
+
   function applyFilter(q) {
-    const s = String(q || "").trim().toLowerCase();
-    if (searchInput) searchInput.value = q || "";
+    const raw = String(q || "");
+    const cleaned = cleanQuery(raw);
+    const s = cleaned.toLowerCase();
+
+    log(`FILTER: ${cleaned}`);
+
+    if (searchInput) searchInput.value = cleaned;
+
     if (!s) return render(catalog);
+
     render(catalog.filter(p => p.blob.includes(s)));
   }
 
@@ -156,8 +181,8 @@
     const r = await fetch(CSV_URL, { cache: "no-store" });
     const text = await r.text();
     const rows = parseCSV(text);
-
     const data = rows.slice(1);
+
     catalog = data
       .filter(rw => rw.some(x => String(x).trim() !== ""))
       .map(mapRow);
@@ -210,25 +235,21 @@
       dc = pc.createDataChannel("oai-events");
 
       dc.onopen = () => {
-        // HARD RULES: English + search phrase ONLY.
+        // Force English + short text only (NOT JSON, NOT Spanish)
         dc.send(JSON.stringify({
           type: "session.update",
           session: {
             instructions:
-              "Output ONLY a short ENGLISH search phrase (2 to 6 words). " +
-              "No Spanish. No explanations. No sentences. No mention of images. " +
-              "Examples: 'SG Standard', 'Les Paul Custom', 'Explorer', 'Pelham Blue', 'Gibson Custom'."
+              "Return ONLY a short ENGLISH search phrase (2 to 6 words). " +
+              "No Spanish. No JSON. No punctuation. No sentences. " +
+              "Examples: SG Standard, Les Paul Custom, Pelham Blue, Explorer 80s."
           }
         }));
 
-        // Ask for a text response (we use it to filter)
+        // Request a text response for each click-to-talk session
         dc.send(JSON.stringify({
           type: "response.create",
-          response: {
-            modalities: ["text"],
-            instructions:
-              "Listen to the user. Return ONLY the best short English search phrase (2 to 6 words)."
-          }
+          response: { modalities: ["text"] }
         }));
       };
 
@@ -237,9 +258,9 @@
         try { m = JSON.parse(e.data); } catch { return; }
 
         if (m.type === "response.output_text.done" && m.text) {
-          const phrase = String(m.text).trim().replace(/^"+|"+$/g, "");
-          log("VOICE QUERY: " + phrase);
-          applyFilter(phrase);
+          const text = String(m.text).trim();
+          log("VOICE QUERY: " + text);
+          applyFilter(text);
         }
       };
 
@@ -271,7 +292,6 @@
     }
   }
 
-  // UI
   if (searchInput) searchInput.addEventListener("input", (e) => applyFilter(e.target.value));
   if (micBtn) micBtn.addEventListener("click", startRealtime);
 
