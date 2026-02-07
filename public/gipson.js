@@ -1,6 +1,8 @@
 (() => {
   const CSV_URL = "/data/gibson.csv";
-  const REALTIME_MODEL = "gpt-realtime";
+
+  // MUST match the model used for the call URL.
+  const REALTIME_MODEL = "gpt-4o-realtime-preview";
 
   const cardsEl = document.getElementById("cards");
   const countLabel = document.getElementById("countLabel");
@@ -76,8 +78,7 @@
     }
   }
 
-  // CSV mapping (based on your scrape headers)
-  // 0 URL, 1 main image, 2 name, 3 vendor, 10 color/variant, 11 price
+  // 0 URL, 1 main image, 2 name, 3 vendor, 10 color, 11 price
   function mapRow(r) {
     const url = normalizeUrl(r[0]);
 
@@ -167,7 +168,6 @@
   function cleanQuery(q) {
     let s = String(q || "").trim();
 
-    // Extract .query if model returns JSON
     if (s.startsWith("{") && s.endsWith("}")) {
       try {
         const obj = JSON.parse(s);
@@ -178,7 +178,6 @@
     s = s.replace(/[^\w\s'-]/g, " ");
     s = s.replace(/\s+/g, " ").trim();
 
-    // remove common fluff that hurts matching
     const stop = new Set([
       "gibson", "guitar", "guitars", "show", "me", "a", "an", "the", "please"
     ]);
@@ -255,18 +254,15 @@
       dc = pc.createDataChannel("oai-events");
 
       dc.onopen = () => {
-        // Tell the model what we want: a SHORT phrase to filter the list.
         dc.send(JSON.stringify({
           type: "session.update",
           session: {
             instructions:
               "Return ONLY a short ENGLISH search phrase (2 to 6 words). " +
-              "No Spanish. No JSON. No explanation. No punctuation. " +
-              "Examples: SG Standard, Pelham Blue, Les Paul Custom, Explorer 80s."
+              "No Spanish. No JSON. No explanation."
           }
         }));
 
-        // Request a single text response for the user's speech
         dc.send(JSON.stringify({
           type: "response.create",
           response: { modalities: ["text"] }
@@ -277,7 +273,6 @@
         let m;
         try { m = JSON.parse(e.data); } catch { return; }
 
-        // Accept text from common event types
         if (m.type === "response.output_text.done" && m.text) {
           log("VOICE QUERY: " + m.text);
           applyFilter(m.text);
