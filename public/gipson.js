@@ -1,107 +1,279 @@
 (() => {
+  const CSV_URL = "/data/gibson.csv";
+  const REALTIME_MODEL = "gpt-realtime";
 
-const CSV_URL = "/data/gibson.csv";
-const REALTIME_MODEL = "gpt-realtime";
+  const cardsEl = document.getElementById("cards");
+  const countLabel = document.getElementById("countLabel");
+  const logEl = document.getElementById("log");
+  const micBtn = document.getElementById("micBtn");
+  const micState = document.getElementById("micState");
+  const searchInput = document.getElementById("searchInput");
+  const remoteAudio = document.getElementById("remoteAudio");
 
-const cardsEl = document.getElementById("cards");
-const countLabel = document.getElementById("countLabel");
-const logEl = document.getElementById("log");
-const micBtn = document.getElementById("micBtn");
-const searchInput = document.getElementById("searchInput");
-const remoteAudio = document.getElementById("remoteAudio");
-
-function log(t){ logEl.textContent += t + "\n"; }
-
-function parseCSV(text){
-  const rows=[]; let row=[],cur="",q=false;
-  for(let i=0;i<text.length;i++){
-    const c=text[i],n=text[i+1];
-    if(c=='"'&&q&&n=='"'){cur+='"';i++;continue;}
-    if(c=='"'){q=!q;continue;}
-    if(!q&&c==","){row.push(cur);cur="";continue;}
-    if(!q&&(c=="\n"||c=="\r")){row.push(cur);rows.push(row);row=[];cur="";continue;}
-    cur+=c;
+  function log(msg) {
+    if (logEl) {
+      logEl.textContent += msg + "\n";
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+    console.log(msg);
   }
-  if(cur||row.length){row.push(cur);rows.push(row);}
-  return rows;
-}
 
-let catalog=[];
+  function parseCSV(text) {
+    const rows = [];
+    let row = [];
+    let cur = "";
+    let q = false;
 
-function render(list){
-  cardsEl.innerHTML="";
-  for(const p of list){
-    const d=document.createElement("div");
-    d.innerHTML=`
-      <img src="${p.image}" width="200"><br>
-      <b>${p.name}</b><br>
-      SKU: ${p.color}<br>
-      ${p.price}<br>
-      <a href="${p.url}" target="_blank">View</a>
-      <hr>
-    `;
-    cardsEl.appendChild(d);
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      const n = text[i + 1];
+
+      if (c === '"' && q && n === '"') { cur += '"'; i++; continue; }
+      if (c === '"') { q = !q; continue; }
+
+      if (!q && c === ",") { row.push(cur); cur = ""; continue; }
+
+      if (!q && (c === "\n" || c === "\r")) {
+        if (c === "\r" && n === "\n") i++;
+        row.push(cur);
+        cur = "";
+        if (row.some(x => String(x).trim() !== "")) rows.push(row);
+        row = [];
+        continue;
+      }
+
+      cur += c;
+    }
+
+    if (cur.length || row.length) {
+      row.push(cur);
+      if (row.some(x => String(x).trim() !== "")) rows.push(row);
+    }
+
+    return rows;
   }
-  countLabel.textContent=`${list.length} shown / ${catalog.length} total`;
-}
 
-async function loadCSV(){
-  const r=await fetch(CSV_URL);
-  const text=await r.text();
-  const rows=parseCSV(text);
-  const data=rows.slice(1);
+  function normalizeUrl(u) {
+    const s = String(u || "").trim();
+    if (!s) return "";
+    if (s.startsWith("http://") || s.startsWith("https://")) return s;
+    if (s.startsWith("//")) return `https:${s}`;
+    if (s.startsWith("/")) return `https://www.gibson.com${s}`;
+    return s;
+  }
 
-  // YOUR COLUMN MAP:
-  // 0 = main product URL
-  // 1 = main image
+  // Your CSV mapping (from the header you pasted)
+  // 0 = product URL
+  // 1 = main image (large)
   // 2 = product name
+  // 3 = vendor
   // 10 = color/variant
   // 11 = price
+  function mapRow(r) {
+    const url = normalizeUrl(r[0]);
+    const img = normalizeUrl(r[1] || r[4] || r[6] || r[8]);
+    const name = String(r[2] || "").trim();
+    const vendor = String(r[3] || "").trim();
+    const color = String(r[10] || "").trim();
+    const price = String(r[11] || "").trim();
 
-  catalog=data.map(r=>({
-    url:r[0],
-    image:r[1],
-    name:r[2],
-    color:r[10],
-    price:r[11]
-  }));
+    // searchable blob
+    const blob = [name, vendor, color, price, url].join(" ").toLowerCase();
 
-  render(catalog);
-  log("CSV loaded: "+catalog.length);
-}
+    return { url, img, name, vendor, color, price, blob };
+  }
 
-function filter(q){
-  q=q.toLowerCase();
-  render(catalog.filter(p=>Object.values(p).join(" ").toLowerCase().includes(q)));
-}
+  let catalog = [];
 
-searchInput.addEventListener("input",e=>filter(e.target.value));
+  function render(list) {
+    cardsEl.innerHTML = "";
 
-micBtn.onclick=()=>startRealtime();
+    const grid = document.createElement("div");
+    grid.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;";
 
-async function startRealtime(){
-  log("Starting realtime…");
-  try{
-    const k=await fetch("/token").then(r=>r.json()).then(j=>j.value);
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    const pc=new RTCPeerConnection();
-    pc.ontrack=e=>remoteAudio.srcObject=e.streams[0];
-    pc.addTrack(stream.getTracks()[0],stream);
+    for (const p of list) {
+      const card = document.createElement("div");
+      card.style.cssText =
+        "border:1px solid rgba(255,255,255,.12);border-radius:14px;overflow:hidden;background:rgba(2,6,23,.55);";
 
-    const offer=await pc.createOffer();
-    await pc.setLocalDescription(offer);
+      const top = document.createElement("div");
+      top.style.cssText = "height:160px;background:rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;overflow:hidden;";
 
-    const r=await fetch(`https://api.openai.com/v1/realtime/calls?model=${REALTIME_MODEL}`,{
-      method:"POST",
-      headers:{Authorization:`Bearer ${k}`,"Content-Type":"application/sdp"},
-      body:offer.sdp
-    });
+      if (p.img) {
+        const img = document.createElement("img");
+        img.src = p.img;
+        img.alt = p.name || "Guitar";
+        img.loading = "lazy";
+        img.style.cssText = "width:100%;height:100%;object-fit:cover;display:block;";
+        top.appendChild(img);
+      } else {
+        top.textContent = "No image";
+        top.style.cssText += "color:rgba(229,231,235,.6);font:13px system-ui;";
+      }
 
-    const ans=await r.text();
-    await pc.setRemoteDescription({type:"answer",sdp:ans});
-    log("Connected.");
-  }catch(e){ log("ERROR "+e.message); }
-}
+      const body = document.createElement("div");
+      body.style.cssText = "padding:10px 12px;font:14px system-ui;color:rgba(229,231,235,.92);display:flex;flex-direction:column;gap:6px;";
 
-loadCSV();
+      const title = document.createElement("div");
+      title.style.cssText = "font-weight:800;line-height:1.2;";
+      title.textContent = p.name || "(untitled)";
+
+      const meta = document.createElement("div");
+      meta.style.cssText = "display:flex;justify-content:space-between;gap:10px;color:rgba(229,231,235,.65);font-size:12px;";
+      meta.innerHTML = `<span>${p.vendor || ""}${p.color ? " • " + p.color : ""}</span><span>${p.price || ""}</span>`;
+
+      const link = document.createElement("a");
+      link.href = p.url || "#";
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = p.url ? "View on Gibson" : "No link";
+      link.style.cssText =
+        "margin-top:6px;text-decoration:none;display:inline-flex;justify-content:center;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.14);color:rgba(229,231,235,.92);background:rgba(17,24,39,.55);";
+      if (!p.url) link.onclick = (e) => e.preventDefault();
+
+      body.appendChild(title);
+      body.appendChild(meta);
+      body.appendChild(link);
+
+      card.appendChild(top);
+      card.appendChild(body);
+
+      grid.appendChild(card);
+    }
+
+    cardsEl.appendChild(grid);
+    if (countLabel) countLabel.textContent = `${list.length} shown / ${catalog.length} total`;
+  }
+
+  function applyFilter(q) {
+    const s = String(q || "").trim().toLowerCase();
+    if (searchInput) searchInput.value = q || "";
+    if (!s) return render(catalog);
+    render(catalog.filter(p => p.blob.includes(s)));
+  }
+
+  async function loadCSV() {
+    const r = await fetch(CSV_URL, { cache: "no-store" });
+    const text = await r.text();
+    const rows = parseCSV(text);
+
+    const data = rows.slice(1);
+    catalog = data
+      .filter(rw => rw.some(x => String(x).trim() !== ""))
+      .map(mapRow);
+
+    log(`CSV loaded: ${catalog.length}`);
+    render(catalog);
+  }
+
+  // ===== REALTIME =====
+  let pc = null;
+  let stream = null;
+  let dc = null;
+
+  async function getKey() {
+    const r = await fetch("/token", { cache: "no-store" });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j?.error || `Token HTTP ${r.status}`);
+    if (!j.value) throw new Error("No ephemeral key returned from /token");
+    return j.value;
+  }
+
+  function stopRealtime() {
+    try { if (dc) dc.close(); } catch {}
+    try { if (pc) pc.close(); } catch {}
+    try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
+    dc = null; pc = null; stream = null;
+    if (micState) micState.textContent = "Click to talk";
+  }
+
+  async function startRealtime() {
+    stopRealtime();
+    log("Starting realtime…");
+    if (micState) micState.textContent = "Listening…";
+
+    try {
+      const key = await getKey();
+
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+      });
+
+      pc = new RTCPeerConnection();
+      pc.addTrack(stream.getTracks()[0], stream);
+
+      pc.ontrack = (e) => {
+        const s = e.streams && e.streams[0];
+        if (s && remoteAudio) remoteAudio.srcObject = s;
+      };
+
+      dc = pc.createDataChannel("oai-events");
+
+      dc.onopen = () => {
+        // HARD RULES: English + search phrase ONLY.
+        dc.send(JSON.stringify({
+          type: "session.update",
+          session: {
+            instructions:
+              "Output ONLY a short ENGLISH search phrase (2 to 6 words). " +
+              "No Spanish. No explanations. No sentences. No mention of images. " +
+              "Examples: 'SG Standard', 'Les Paul Custom', 'Explorer', 'Pelham Blue', 'Gibson Custom'."
+          }
+        }));
+
+        // Ask for a text response (we use it to filter)
+        dc.send(JSON.stringify({
+          type: "response.create",
+          response: {
+            modalities: ["text"],
+            instructions:
+              "Listen to the user. Return ONLY the best short English search phrase (2 to 6 words)."
+          }
+        }));
+      };
+
+      dc.onmessage = (e) => {
+        let m;
+        try { m = JSON.parse(e.data); } catch { return; }
+
+        if (m.type === "response.output_text.done" && m.text) {
+          const phrase = String(m.text).trim().replace(/^"+|"+$/g, "");
+          log("VOICE QUERY: " + phrase);
+          applyFilter(phrase);
+        }
+      };
+
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const sdpResp = await fetch(
+        `https://api.openai.com/v1/realtime/calls?model=${encodeURIComponent(REALTIME_MODEL)}`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/sdp" },
+          body: offer.sdp
+        }
+      );
+
+      if (!sdpResp.ok) {
+        const t = await sdpResp.text().catch(() => "");
+        throw new Error(`Realtime calls failed: ${sdpResp.status} ${t}`);
+      }
+
+      const answer = await sdpResp.text();
+      await pc.setRemoteDescription({ type: "answer", sdp: answer });
+
+      log("Connected.");
+      if (micState) micState.textContent = "Connected";
+    } catch (err) {
+      log("ERROR: " + (err?.message || String(err)));
+      stopRealtime();
+    }
+  }
+
+  // UI
+  if (searchInput) searchInput.addEventListener("input", (e) => applyFilter(e.target.value));
+  if (micBtn) micBtn.addEventListener("click", startRealtime);
+
+  loadCSV().catch(err => log("CSV ERROR: " + (err?.message || String(err))));
 })();
