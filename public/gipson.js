@@ -79,7 +79,6 @@
 
   function render(list) {
     if (!cardsEl) return;
-
     cardsEl.innerHTML = "";
 
     const grid = document.createElement("div");
@@ -144,7 +143,7 @@
   function cleanQuery(q) {
     let s = String(q || "").trim();
 
-    // If the model returns JSON, extract .query
+    // If JSON, extract .query
     if (s.startsWith("{") && s.endsWith("}")) {
       try {
         const obj = JSON.parse(s);
@@ -152,28 +151,23 @@
       } catch {}
     }
 
-    // Remove quotes / punctuation noise
-    s = s.replace(/^"+|"+$/g, "");
     s = s.replace(/[^\w\s'-]/g, " ");
     s = s.replace(/\s+/g, " ").trim();
 
-    // Strip common junk words that hurt matching
-    const stop = new Set(["gibson", "guitar", "guitars", "show", "me", "a", "an", "the"]);
+    // Strip junk words
+    const stop = new Set(["gibson", "guitar", "guitars", "show", "me", "a", "an", "the", "please"]);
     const parts = s.split(" ").filter(w => !stop.has(w.toLowerCase()));
     return parts.join(" ").trim() || s.trim();
   }
 
   function applyFilter(q) {
-    const raw = String(q || "");
-    const cleaned = cleanQuery(raw);
+    const cleaned = cleanQuery(q);
     const s = cleaned.toLowerCase();
 
     log(`FILTER: ${cleaned}`);
-
     if (searchInput) searchInput.value = cleaned;
 
     if (!s) return render(catalog);
-
     render(catalog.filter(p => p.blob.includes(s)));
   }
 
@@ -196,6 +190,21 @@
   let stream = null;
   let dc = null;
 
+  let lastTextSeen = "";
+  let fallbackTimer = null;
+
+  function setFallbackTimer() {
+    clearTimeout(fallbackTimer);
+    fallbackTimer = setTimeout(() => {
+      if (lastTextSeen) {
+        log("FALLBACK USING LAST TEXT: " + lastTextSeen);
+        applyFilter(lastTextSeen);
+      } else {
+        log("FALLBACK: no text received");
+      }
+    }, 6000);
+  }
+
   async function getKey() {
     const r = await fetch("/token", { cache: "no-store" });
     const j = await r.json().catch(() => ({}));
@@ -205,6 +214,10 @@
   }
 
   function stopRealtime() {
+    clearTimeout(fallbackTimer);
+    fallbackTimer = null;
+    lastTextSeen = "";
+
     try { if (dc) dc.close(); } catch {}
     try { if (pc) pc.close(); } catch {}
     try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch {}
@@ -235,32 +248,59 @@
       dc = pc.createDataChannel("oai-events");
 
       dc.onopen = () => {
-        // Force English + short text only (NOT JSON, NOT Spanish)
+        // Strong instruction: return only a short phrase.
         dc.send(JSON.stringify({
           type: "session.update",
           session: {
             instructions:
               "Return ONLY a short ENGLISH search phrase (2 to 6 words). " +
-              "No Spanish. No JSON. No punctuation. No sentences. " +
+              "No Spanish. No JSON. No explanations. No punctuation. " +
               "Examples: SG Standard, Les Paul Custom, Pelham Blue, Explorer 80s."
           }
         }));
 
-        // Request a text response for each click-to-talk session
+        // IMPORTANT: explicitly request a response now
         dc.send(JSON.stringify({
           type: "response.create",
           response: { modalities: ["text"] }
         }));
+
+        setFallbackTimer();
       };
 
       dc.onmessage = (e) => {
         let m;
         try { m = JSON.parse(e.data); } catch { return; }
 
-        if (m.type === "response.output_text.done" && m.text) {
-          const text = String(m.text).trim();
-          log("VOICE QUERY: " + text);
-          applyFilter(text);
+        // We accept text from multiple event types
+        // depending on API/SDK variations.
+        const maybeText =
+          m.text ||
+          m.delta ||
+          m.output_text ||
+          (m.response && m.response.output_text) ||
+          (m.response && m.response.text) ||
+          "";
+
+        // Track any text we see
+        if (typeof maybeText === "string" && maybeText.trim()) {
+          lastTextSeen = maybeText.trim();
+        }
+
+        // Apply filter on any "done"/"completed" event we can catch
+        const type = String(m.type || "");
+        if (
+          type === "response.output_text.done" ||
+          type === "response.completed" ||
+          type === "response.done" ||
+          type.endsWith(".done") ||
+          type.endsWith(".completed")
+        ) {
+          if (lastTextSeen) {
+            log("VOICE TEXT: " + lastTextSeen);
+            applyFilter(lastTextSeen);
+            clearTimeout(fallbackTimer);
+          }
         }
       };
 
